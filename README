@@ -1,1 +1,7 @@
-TEST
+ATTRRAC - ATmospheric TRansmission RAdar Control
+
+File list
+
+/asm_com/asm_com.asp	AVR Studio Project file
+/asm_com/com.asm	Assembler code for communication uC
+
