@@ -3,6 +3,7 @@
 #include "ftd2xx.h"
 #include <math.h>
 
+
 #define BUF_SIZE 40000		
 
 // Define commands
