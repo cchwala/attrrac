@@ -5,6 +5,8 @@
 
 #define BUF_SIZE 40000		
 
+//cccc
+
 // Define commands
 #define ERROR			0x00
 #define SET_NUM_SAMPLES 0x01
