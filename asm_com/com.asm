@@ -7,7 +7,6 @@
 .def n_samples3 = r20
 .def eeprom_buffer = r21
 
-
 ;====================================================================;
 ;--------------------------------------------------------------------;
 ;
@@ -36,8 +35,11 @@
 .equ ERROR 		= 0x00
 .equ SET_NUM_SAMPLES 	= 0x01
 .equ SET_MODE		= 0x02
-
+.equ SET_PW		= 0x03
+.equ SET_RANGE		= 0x04
+.equ SET_RANGE_INCR	= 0x05
 .equ START_MSRMNT 	= 0x06
+.equ SET_CASE_TEMP	= 0x07
 
 
 reset:
@@ -95,8 +97,11 @@ read_byte:
 
 
 ;====================================;
+;    COMMUNICATION STATE MACHINE     ;
+;				     ;
 ; Check if the received byte matches ;
-; a command and than branch to it    ;
+; a command. Than branch to the      ;
+; matching subroutine.		     ;
 ;------------------------------------;
 check_usb_bits:
 	cpi	data, SET_NUM_SAMPLES
@@ -105,14 +110,16 @@ check_usb_bits:
 	cpi	data, START_MSRMNT
 	breq	com_start_msrmnt
 
-	cpi 	data, 0x04
-	breq 	com_04
+	cpi	data, SET_CASE_TEMP
+	breq	com_set_case_temp
 	
 	ldi	data, ERROR		; If no match was found, send error
 	rcall	write_byte_usb
 	ret				; Return to main
 
-; Sets the 3byte value for n_samples 
+;------------------------------------;
+; Sets the 3byte value for n_samples ;
+;------------------------------------;
 com_set_num_samples:
 	rcall	write_byte_usb		; write back received command byte to PC
 	rcall	read_byte_usb		; get 1st byte from usb
@@ -134,17 +141,21 @@ com_set_num_samples:
 	rcall 	write_byte_usb		; write back 3st byte
 	ret
 
+;-------------------;
+; Start measurement ;
+;-------------------;
 com_start_msrmnt:
 	rcall	write_byte_usb		; write back received command byte to PC
 	rcall 	n_samples_from_eeprom	; get n_samples1,2,3 from eeprom
 	rcall	write_fast_init		; write data n_sample-times
 	ret
 
-com_04:
-	ldi	data, 0x04
-	rcall	write_byte_usb	
-	rjmp	main
-;===================================;
+;----------------------------------;
+; Set the desired case temperature ;
+;----------------------------------;
+com_set_case_temp:
+	nop
+;====================================;
 
 
 ;================================;
@@ -294,10 +305,10 @@ write_fast:
 
 	rjmp 	write_fast
 
-
 exit_write_fast:
 	ret
 ;===================;
+
 
 
 ;=============;
