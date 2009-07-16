@@ -95,6 +95,7 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
 	// Check what the uC returns, it should be the same command
 	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+	printf("Sent %x \nRed  %x \n\n", cBufWrite[0], pcBufRead[0]);
 	if (pcBufRead[0] != cBufWrite[0])
 	{
 		printf("USB transmission problem.\n");
@@ -103,7 +104,6 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 		return 1;
 	}
 	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-	
 	// Send the value for the number of samples
 	cBufWrite[0] = num[0];
 	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
 	FT_SetDtr(ftHandle);
 	FT_SetRts(ftHandle);
 	FT_SetFlowControl(ftHandle, FT_FLOW_RTS_CTS, 0, 0);
-	FT_SetTimeouts(ftHandle, 1000, 1000);			
+	FT_SetTimeouts(ftHandle, 1000, 1000);
 
 	// Send command
 	set_num_samples(ftHandle,400000);
