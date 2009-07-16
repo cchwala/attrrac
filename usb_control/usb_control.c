@@ -5,8 +5,6 @@
 
 #define BUF_SIZE 40000		
 
-//cccc
-
 // Define commands
 #define ERROR			0x00
 #define SET_NUM_SAMPLES 0x01
@@ -171,7 +169,7 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_samples)
 	read_buffer_size = n_samples;
 	pcBufRead = (char *)malloc(read_buffer_size);
 
-//	printf("READING SAMPLES FROM USB...\n");
+	printf("READING SAMPLES FROM USB...\n");
 	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
 
 	// Data sanity check
@@ -231,58 +229,7 @@ int main(int argc, char *argv[])
 
 	FT_Close(ftHandle);
 	
-///////////////////////
-// S T O P   H E R E //
-///////////////////////
 	return 0;
-
-	// Check status byte
-	
-	// Write command
-	
-	// Verify command
-	
-	// Start measurement
-	
-	// Verify command
-	
-	// ----------------------------------- //
-	// Read a large block of data from USB //
-	// and check for sanity.			   //
-	// ----------------------------------- //
-	//large_read_usb(ftHandle,read_buffer,buffer_size);
-
-//	// Open data file
-//	fh = fopen("data.dat", "w+");
-//	if(fh == NULL) {
-//		printf("Cant open source file\n");
-//		return 1;
-//	}
-//	// Write buffer to file
-//	for (i = 0; i < dwBytesRead; i++){
-//		fprintf(fh, "%d \n", pcBufRead[i]);
-//	}
-//	
-//	// Data sanity check
-//	printf ("DATA SANITY CHECK...\n");
-//	for (i = 0; i < dwBytesRead-1; i++){
-//		if (pcBufRead[i+1] - pcBufRead[i] != 1 && 
-//			pcBufRead[i+1] - pcBufRead[i] != -255){
-//			errorcount++;
-//			printf("Error at %d : %x - %x =  %d \n", 
-//					i, pcBufRead[i+1],  pcBufRead[i], 
-//					pcBufRead[i+1] - pcBufRead[i]);
-//		}
-//	}
-//	printf("Number of bytes red = %d \n", dwBytesRead);
-//	printf("Nummber of errors = %d \n\n", errorcount);
-//
-//	// Close file handle
-//	fclose(fh);
-//	// Close usb device handle
-//	FT_Close(ftHandle);
-//	
-//	return 0;
 }
 
 
