@@ -1,4 +1,9 @@
-.include "m8515def.inc" 
+;.include "m8515def.inc" 
+.include "m324pdef.inc" 
+
+; ALIAS FOR ATMEGA324P
+.set   EEMWE   =EEMPE
+.set   EEWE   =EEPE 
 
 .def temp = r16
 .def data  = r17
@@ -16,7 +21,7 @@
 ; evaluate them.
 ;
 ; PORTA = LED output
-; PORTB = I/O via USB
+; PORTD = I/O via USB
 ; PORTC = control USB	PINC0 = RXF flag INPUT
 ;			PINC1 = RD flag OUTPUT
 ;			PINC2 = TXF flag INPUT
@@ -24,11 +29,6 @@
 ;
 ;--------------------------------------------------------------------;
 ;====================================================================;
-
-; ASM ASM ASM
-
-; ONLY FAST WRITE OUTPUT
-;	rcall	write_fast_init
 
 
 ;======================;
@@ -43,6 +43,18 @@
 .equ START_MSRMNT 	= 0x06
 .equ SET_CASE_TEMP	= 0x07
 
+
+; FOR TESTING ONLY
+;	sbi 	DDRC, 1			; PORTC 1 output
+;	sbi	PORTC, 1		; set it high
+;	sbi 	DDRC, 3			; PORTC 3 output
+;	sbi	PORTC, 3		; set it high
+;foo:
+;	cbi	PORTC, 3
+;	sbi	PORTC, 3
+;	rjmp 	foo
+
+;rjmp 	write_fast_init
 
 reset:
 
@@ -70,9 +82,9 @@ main:
 ;-----------------------------------;
 read_byte_usb:
 	ldi 	temp, 0x00	
-	out 	DDRB, temp		; PORTB is input
+	out 	DDRD, temp		; PORTD is input
 	ldi	temp, 0xFF
-	out	PORTB, temp		; pull-ups active
+	out	PORTD, temp		; pull-ups active
 
 	cbi 	DDRC, 0			; PORTC 0 input
 	sbi	PORTC, 0		; pull-up active
@@ -92,7 +104,7 @@ wait_for_RXF:
 read_byte:
 	cbi 	PORTC, 1 		; pull RD low to read from usb chip
 	nop				; !!! KEEP THIS FOR TIMING !!!
-	in 	data, PINB		; read
+	in 	data, PIND		; read
 	sbi 	PORTC, 1		; set RD to high again
 	ret
 ;===================================;
@@ -106,6 +118,12 @@ read_byte:
 ; matching subroutine.		     ;
 ;------------------------------------;
 check_usb_bits:
+;	ldi	temp, 0b01010101
+	;out	portA, temp
+;	out	portA, data ; DEBUG !!!!!!!!!!!!!!
+	;rcall	write_byte_usb
+;	ret	; DEBUG !!!!!!!!!!!!!!!!	
+
 	cpi	data, SET_NUM_SAMPLES
 	breq	com_set_num_samples
 
@@ -148,7 +166,7 @@ com_set_num_samples:
 ;-------------------;
 com_start_msrmnt:
 	rcall	write_byte_usb		; write back received command byte to PC
-	rcall 	n_samples_from_eeprom	; get n_samples1,2,3 from eeprom
+;	rcall 	n_samples_from_eeprom	; get n_samples1,2,3 from eeprom
 	rcall	write_fast_init		; write data n_sample-times
 	ret
 
@@ -244,7 +262,7 @@ read_eeprom:
 ;----------------------------;
 write_byte_usb:
 	ldi 	temp, 0xFF	
-	out 	DDRB, temp		; PORTB is output
+	out 	DDRD, temp		; PORTD is output
 
 	cbi 	DDRC, 0			; PORTC 0 input
 	sbi	PORTC, 0		; pull-up active
@@ -262,7 +280,7 @@ wait_for_TXF:
 	rjmp	wait_for_TXF
 
 write_byte_usb_bits:
-	out	PORTB, data
+	out	PORTD, data
 	cbi	PORTC, 3
 	sbi	PORTC, 3
 	ret
@@ -274,7 +292,7 @@ write_byte_usb_bits:
 ;-------------------;
 write_fast_init:
 	ldi 	temp, 0xFF	
-	out 	DDRB, temp		; PORTB is output
+	out 	DDRD, temp		; PORTD is output
 
 	cbi 	DDRC, 0			; PORTC 0 input
 	sbi	PORTC, 0		; pull-up active
@@ -289,11 +307,11 @@ write_fast_init:
 	ldi	temp, 0
 
 write_fast:
-	out 	PORTB, temp
+	out 	PORTD, temp
 	cbi	PORTC, 3
 	sbi	PORTC, 3
 	inc	temp
-	out 	PORTB, temp
+	out 	PORTD, temp
 	cbi	PORTC, 3
 	sbi	PORTC, 3
 	inc	temp
@@ -303,6 +321,7 @@ write_fast:
 	subi 	n_samples1, 1		; decrement 24bit loop counter 'n_samples'
 	sbci 	n_samples2, 0		;
 	sbci 	n_samples3, 0		;
+
 	breq	exit_write_fast		; exit loop if counter reached zero
 
 	rjmp 	write_fast
