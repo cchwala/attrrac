@@ -71,7 +71,6 @@ reset:
 	out 	DDRA, temp 	
 	out	PORTA, temp		; LEDs off
 
-
 main:
 	rcall	read_byte_usb
 	rcall	check_usb_bits
