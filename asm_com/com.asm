@@ -1,39 +1,96 @@
-;.include "m8515def.inc" 
-.include "m324pdef.inc" 
-
-; ALIAS FOR ATMEGA324P
-.set   EEMWE   =EEMPE
-.set   EEWE   =EEPE 
-
-.def temp = r16
-.def data  = r17
-.def n_samples1 = r18
-.def n_samples2 = r19
-.def n_samples3 = r20
-.def eeprom_buffer = r21
-
 ;====================================================================;
 ;--------------------------------------------------------------------;
 ;
-; USB COMMUNICATION PROGRAMM
+; -A-T-T-R-R-A-C---c-o-m-_-u-C-  
 ;
-; Wait for commands, one byte long, from PC via FT245R USB chip and
+; Master control and USB communication programm for the pulse 
+; generation PCB board. The main loop waits for commands from a PC
+; via the FT245R USB iC and controlls the pulse generation uC and
+; a DS1621 thermostat
+; 
+; -TWI BUS-
+; The pulse generation uC and a DS1621 are controlled via
+; hardware TWI
+;			PINC0 = SCL
+;			PINC1 = SDA
+;
+; -USB COMMUNICATION-
+; Waits for commands, one byte long, from PC via FT245R USB chip and
 ; evaluate them.
 ;
-; PORTA = LED output
+; PORTC = control USB	PINC4 = RXF flag INPUT
+;			PINC5 = RD flag OUTPUT
+;			PINC6 = TXF flag INPUT
+;			PINC7 = WR flag OUTPUT
 ; PORTD = I/O via USB
-; PORTC = control USB	PINC0 = RXF flag INPUT
-;			PINC1 = RD flag OUTPUT
-;			PINC2 = TXF flag INPUT
-;			PINC3 = WR flag OUTPUT
+;
+; 
 ;
 ;--------------------------------------------------------------------;
 ;====================================================================;
 
+;======================;
+; Runs on a ATMEGA324P ;
+;======================;
+.include "m324pdef.inc" 
 
-;======================;
-; Define byte commands ;
-;======================;
+; TODO
+; Increment a reset counter that can be read by the host PC
+; and set back to zero if desired
+
+; ALIAS FOR ATMEGA324P
+.set   EEMWE = EEMPE
+.set   EEWE  = EEPE 
+
+.def temp 	   = r16
+.def data  	   = r17 
+.def n_samples1    = r18
+.def n_samples2    = r19
+.def n_samples3    = r20
+.def eeprom_buffer = r21
+.def t_msb 	   = r22	; Case temperature MSB
+.def t_lsb	   = r23	; Case temperature LSB
+.def twi_stat	   = r24
+
+;=======================================;
+; TWI Bitrate = 100 kHz for 8 MHz clock ;
+;=======================================;
+.equ TWI_BIT_RATE	= 32
+.equ TWI_PRESCALER	= 1
+;.equ TWI_BIT_RATE	= 255	; SLOWEST SETTING
+;.equ TWI_PRESCALER	= 64
+
+
+
+;====================;
+; TWI STATUS ALIASES ;
+;====================;
+.equ START	= 0x08
+.equ REP_START  = 0x10
+.equ SLA_W_ACK	= 0x18
+.equ DAT_W_ACK	= 0x28
+.equ SLA_R_ACK	= 0x40
+.equ DAT_R_ACK	= 0x50
+.equ DAT_R_NACK	= 0x58
+
+
+;=================;
+; DS1621 settings ;
+;=================;
+.equ THERMO_ADDRS_W	= 0b10010000	; Address for writting
+.equ THERMO_ADDRS_R	= 0b10010001	; Address for reading
+
+.equ READ_TEMP		= 0xAA		; Read temperature
+.equ SET_TH		= 0xA1		; Set high temp limit
+.equ SET_TL		= 0xA2		; Set low temp limit
+.equ SET_CFG		= 0xAC		; Set config register
+.equ START_CONV		= 0xEE		; Start conversion
+.equ STOP_CONV		= 0x22		; Stop conversion
+
+
+;===========================;
+; PC communication commands ;
+;===========================;
 .equ ERROR 		= 0x00
 .equ SET_NUM_SAMPLES 	= 0x01
 .equ SET_MODE		= 0x02
@@ -43,70 +100,29 @@
 .equ START_MSRMNT 	= 0x06
 .equ SET_CASE_TEMP	= 0x07
 
+.equ GET_CASE_TEMP	= 0x17
 
-; FOR TESTING ONLY
-;	sbi 	DDRC, 1			; PORTC 1 output
-;	sbi	PORTC, 1		; set it high
-;	sbi 	DDRC, 3			; PORTC 3 output
-;	sbi	PORTC, 3		; set it high
-;foo:
-;	cbi	PORTC, 3
-;	sbi	PORTC, 3
-;	rjmp 	foo
-
-;rjmp 	write_fast_init
 
 reset:
-
-; TODO
-; Increment a reset counter that can be read by the host PC
-; and set back to zero if desired
-
   	ldi 	temp, LOW(RAMEND)	; LOW-Byte of upper RAM-Adress
         out 	SPL, temp
         ldi 	temp, HIGH(RAMEND)	; HIGH-Byte of upper RAM-Adress
         out 	SPH, temp 
 
-	ldi 	temp, 0xFF		; PORTA is output fot LEDs
-	out 	DDRA, temp 	
-	out	PORTA, temp		; LEDs off
+	rcall	init_thermostat		; Initialize the DS1621 over TWI
 
 main:
-	rcall	read_byte_usb
+	; TEST
+;	rcall com_get_case_temp
+;	ldi data, 0xff
+;	rcall write_byte_usb
+;	rjmp main
+
+	; Main usually starts here
+	rcall	read_byte_usb	
 	rcall	check_usb_bits
 	rjmp	main
 
-;===================================;
-; Read single byte command from USB ;
-;-----------------------------------;
-read_byte_usb:
-	ldi 	temp, 0x00	
-	out 	DDRD, temp		; PORTD is input
-	ldi	temp, 0xFF
-	out	PORTD, temp		; pull-ups active
-
-	cbi 	DDRC, 0			; PORTC 0 input
-	sbi	PORTC, 0		; pull-up active
-	cbi	DDRC, 2			; PORTC 2 input
-	sbi	PORTC, 2		; pull-up active
-
-	sbi 	DDRC, 1			; PORTC 1 output
-	sbi	PORTC, 1		; set it high
-	sbi 	DDRC, 3			; PORTC 3 output
-	sbi	PORTC, 3		; set it high
-
-wait_for_RXF:
-	sbis	PINC, 0 		; exit loop if RXF (read ready) is low
-	rjmp 	read_byte
-	rjmp 	wait_for_RXF	
-
-read_byte:
-	cbi 	PORTC, 1 		; pull RD low to read from usb chip
-	nop				; !!! KEEP THIS FOR TIMING !!!
-	in 	data, PIND		; read
-	sbi 	PORTC, 1		; set RD to high again
-	ret
-;===================================;
 
 
 ;====================================;
@@ -117,12 +133,6 @@ read_byte:
 ; matching subroutine.		     ;
 ;------------------------------------;
 check_usb_bits:
-;	ldi	temp, 0b01010101
-	;out	portA, temp
-;	out	portA, data ; DEBUG !!!!!!!!!!!!!!
-	;rcall	write_byte_usb
-;	ret	; DEBUG !!!!!!!!!!!!!!!!	
-
 	cpi	data, SET_NUM_SAMPLES
 	breq	com_set_num_samples
 
@@ -131,10 +141,17 @@ check_usb_bits:
 
 	cpi	data, SET_CASE_TEMP
 	breq	com_set_case_temp
-	
+
+	cpi	data, GET_CASE_TEMP
+	breq	jmp_get_case_temp
+		
 	ldi	data, ERROR		; If no match was found, send error
 	rcall	write_byte_usb
 	ret				; Return to main
+
+; if relative branch out of reach
+jmp_get_case_temp:
+	rjmp 	com_get_case_temp
 
 ;------------------------------------;
 ; Sets the 3byte value for n_samples ;
@@ -165,16 +182,261 @@ com_set_num_samples:
 ;-------------------;
 com_start_msrmnt:
 	rcall	write_byte_usb		; write back received command byte to PC
-;	rcall 	n_samples_from_eeprom	; get n_samples1,2,3 from eeprom
+	rcall 	n_samples_from_eeprom	; get n_samples1,2,3 from eeprom
 	rcall	write_fast_init		; write data n_sample-times
+
 	ret
 
 ;----------------------------------;
 ; Set the desired case temperature ;
 ;----------------------------------;
 com_set_case_temp:
-	nop
+	rcall	write_byte_usb		; write back received command byte to PC
+	
+	rcall	twi_init		; Init TWI
+
+
+	rcall	twi_start		; --- SET T_HIGH ----
+
+	ldi	data, THERMO_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+	rcall	twi_check		
+	
+	ldi	data, SET_TH		; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+;	ldi	data, 31		; Set TH
+	rcall	read_byte_usb		; Read T_HIGH byte from USB
+	rcall	write_byte_usb		; Write it back for error checking
+	push 	data			; T_HIGH on stack
+	rcall	twi_write		; Write it to thermostat
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	ldi	data, 0			; SET TH LSB to 0
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	rcall	twi_stop
+
+	rcall	twi_start		; --- SET T_LOW ----
+
+	ldi	data, THERMO_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+	rcall	twi_check		
+	
+	ldi	data, SET_TL		; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+;	ldi	data, 31		; Set TL 
+	pop	data			; Get T_HIGH from stack
+	rcall	twi_write		; And write as T_LOW to thermostat
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	ldi	data, 0			; SET TL LSB to 0
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	rcall	twi_stop
+
+	ret
+
+;----------------------;
+; Get case temperature ;
+;----------------------;
+com_get_case_temp:
+	rcall	write_byte_usb		; write back received command byte to PC
+	
+	rcall	twi_init		; Init TWI
+
+	rcall	twi_start
+
+	ldi	data, THERMO_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+	rcall	twi_check
+			
+	ldi	data, READ_TEMP		; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	rcall	twi_start		; Send start again to begin read process
+
+	ldi	data, THERMO_ADDRS_R	; Send address for thermostat + read
+	rcall	twi_write
+	ldi	twi_stat, SLA_R_ACK	; Check status (read ACK)
+	rcall	twi_check
+
+	rcall	twi_read_ack		; Read first byte answer with ACK
+	mov 	t_msb, data		; copy to MSB
+	ldi	twi_stat, DAT_R_ACK	; Check status (data received, ACK sent)
+	rcall	twi_check
+
+	rcall	twi_read		; Read second byte and terminate with NACK
+	mov	t_lsb, data		; copy to LSB
+	ldi	twi_stat, DAT_R_NACK	; Check status (data received, NACK sent)
+	rcall	twi_check
+
+	rcall	twi_stop
+
+	mov 	data, t_lsb		; Transmit to PC
+	rcall	write_byte_usb
+	mov	data, t_msb
+	rcall	write_byte_usb
+
+	ret
+
+
+;------------------------------------;
+; E N D  COMMUNICATION STATE MACHINE ;
 ;====================================;
+
+
+;====================;
+; Initialize the TWI ;
+;--------------------;
+twi_init:
+	ldi 	temp, TWI_BIT_RATE	; Set bitrate
+	sts 	TWBR, temp
+	ldi 	temp, TWI_PRESCALER	; Set prescaler
+	sts 	TWSR, temp
+	ldi 	temp, (0<<TWINT|1<<TWEA|1<<TWEN) 	
+	sts 	TWCR,temp		; Set control register
+	
+	ret
+;====================;
+
+
+;======================;
+; Start a TWI transfer ;
+;----------------------;
+twi_start:
+	ldi 	temp, (1<<TWINT|1<<TWSTA|1<<TWEN)
+	sts 	TWCR, temp		; Set Start in control register
+
+wait1:
+	lds 	temp,TWCR		; Wait for TWINT Flag set.  
+	sbrs 	temp,TWINT		; This indicates that the START
+	rjmp 	wait1			; condition has been transmitted.
+
+	lds 	temp,TWSR		; Check value of TWI Status
+	andi 	temp, 0xF8		; Register. Mask prescaler bits. If
+	cpi 	temp, START		; if status = START return to caller
+	breq	exit_twi_start
+	cpi	temp, REP_START		; if status = REP_START return to caller
+	breq	exit_twi_start
+; MAYBE use rcall instead of rjmp
+	rjmp 	twi_error		; if not --> ERROR
+exit_twi_start:
+	ret
+;=======================;
+
+
+;===================;
+; Stop TWI transfer ;
+;-------------------;
+twi_stop:
+	ldi	temp, (1<<TWINT|1<<TWEN|1<<TWSTO)
+	sts	TWCR, temp
+
+	lds 	temp,TWSR		; Check value of TWI Status
+	andi 	temp, 0xF8		; Register. Mask prescaler bits. If
+
+	ret
+;===================;
+
+
+;===================;
+; Write byte to TWI ;
+;-------------------;
+twi_write:
+	mov	temp, data		; Set data to data register
+	sts	TWDR, temp
+	ldi	temp, (1<<TWINT|1<<TWEN)
+	sts	TWCR, temp		; Start transmission
+wait3:
+	lds	temp,TWCR		; Wait for TWINT to be set
+	sbrs	temp,TWINT
+	rjmp	wait3
+
+	ret
+;===================;
+
+
+;===============================;
+; Check the TWI status register ;
+;-------------------------------;
+twi_check:
+	lds	temp,TWSR	
+	andi	temp, 0xF8
+	cp	temp, twi_stat		; twi_stat = desired value
+	brne 	twi_error
+
+	ret
+;===============================;
+
+
+;=====================================;
+; Read one byte and continue with ACK ;
+;-------------------------------------;
+twi_read_ack:
+	ldi	temp, (1<<TWINT|1<<TWEA|1<<TWEN)
+	sts	TWCR, temp
+
+wait4:
+	lds	temp,TWCR		; Wait for TWINT to be set
+	sbrs	temp,TWINT
+	rjmp	wait4
+
+	lds	data, TWDR		; read data in
+	
+	ret
+;=====================================;
+
+
+;=======================================;
+; Read one byte and terminate with NACK ;
+;---------------------------------------;
+twi_read:
+	ldi	temp, (1<<TWINT|0<<TWEA|1<<TWEN)
+	sts	TWCR, temp
+
+wait5:
+	lds	temp,TWCR		; Wait for TWINT to be set
+	sbrs	temp,TWINT
+	rjmp	wait5
+
+	lds	data, TWDR		; read data in
+	
+	ret
+;=======================================;
+
+
+;===========;
+; TWI ERROR ;
+;-----------;
+twi_error:
+ldi data, 0xFF
+rcall write_byte_usb
+	rcall	twi_stop		; STOP
+		
+	ldi	temp, (0<<TWEN)		; TWI OFF
+	sts	TWCR, temp
+	
+	rcall 	twi_init		; Init TWI
+
+	ret
+;===========;
 
 
 ;================================;
@@ -256,6 +518,39 @@ read_eeprom:
 ;=================================;
 
 
+;===================================;
+; Read single byte command from USB ;
+;-----------------------------------;
+read_byte_usb:
+	ldi 	temp, 0x00	
+	out 	DDRD, temp		; PORTD is input
+	ldi	temp, 0xFF
+	out	PORTD, temp		; pull-ups active
+
+	cbi 	DDRC, 4			; PORTC 4 input
+	sbi	PORTC, 4		; pull-up active
+	cbi	DDRC, 6			; PORTC 6 input
+	sbi	PORTC, 6		; pull-up active
+
+	sbi 	DDRC, 5			; PORTC 5 output
+	sbi	PORTC, 5		; set it high
+	sbi 	DDRC, 7			; PORTC 7 output
+	sbi	PORTC, 7		; set it high
+
+wait_for_RXF:
+	sbis	PINC, 4 		; exit loop if RXF (read ready) is low
+	rjmp 	read_byte
+	rjmp 	wait_for_RXF	
+
+read_byte:
+	cbi 	PORTC, 5 		; pull RD low to read from usb chip
+	nop				; !!! KEEP THIS FOR TIMING !!!
+	in 	data, PIND		; read
+	sbi 	PORTC, 5		; set RD to high again
+	ret
+;===================================;
+
+
 ;============================;
 ; Write a single byte to USB ;
 ;----------------------------;
@@ -263,25 +558,26 @@ write_byte_usb:
 	ldi 	temp, 0xFF	
 	out 	DDRD, temp		; PORTD is output
 
-	cbi 	DDRC, 0			; PORTC 0 input
-	sbi	PORTC, 0		; pull-up active
-	cbi	DDRC, 2			; PORTC 2 input
-	sbi	PORTC, 2		; pull-up active
+	cbi 	DDRC, 4			; PORTC 4 input
+	sbi	PORTC, 4		; pull-up active
+	cbi	DDRC, 6			; PORTC 6 input
+	sbi	PORTC, 6		; pull-up active
 
-	sbi 	DDRC, 1			; PORTC 1 output
-	sbi	PORTC, 1		; set it high
-	sbi 	DDRC, 3			; PORTC 3 output
-	sbi	PORTC, 3		; set it high
+	sbi 	DDRC, 5			; PORTC 5 output
+	sbi	PORTC, 5		; set it high
+	sbi 	DDRC, 7			; PORTC 7 output
+	sbi	PORTC, 7		; set it high
 	
 wait_for_TXF:
-	sbis	PINC, 2
+	sbis	PINC, 6
 	rjmp	write_byte_usb_bits
 	rjmp	wait_for_TXF
 
 write_byte_usb_bits:
 	out	PORTD, data
-	cbi	PORTC, 3
-	sbi	PORTC, 3
+	cbi	PORTC, 7
+	sbi	PORTC, 7
+
 	ret
 ;=============================;
 
@@ -293,26 +589,26 @@ write_fast_init:
 	ldi 	temp, 0xFF	
 	out 	DDRD, temp		; PORTD is output
 
-	cbi 	DDRC, 0			; PORTC 0 input
-	sbi	PORTC, 0		; pull-up active
-	cbi	DDRC, 2			; PORTC 2 input
-	sbi	PORTC, 2		; pull-up active
+	cbi 	DDRC, 4			; PORTC 4 input
+	sbi	PORTC, 4		; pull-up active
+	cbi	DDRC, 6			; PORTC 6 input
+	sbi	PORTC, 6		; pull-up active
 
-	sbi 	DDRC, 1			; PORTC 1 output
-	sbi	PORTC, 1		; set it high
-	sbi 	DDRC, 3			; PORTC 3 output
-	sbi	PORTC, 3		; set it high
+	sbi 	DDRC, 5			; PORTC 5 output
+	sbi	PORTC, 5		; set it high
+	sbi 	DDRC, 7			; PORTC 7 output
+	sbi	PORTC, 7		; set it high
 
 	ldi	temp, 0
 
 write_fast:
 	out 	PORTD, temp
-	cbi	PORTC, 3
-	sbi	PORTC, 3
+	cbi	PORTC, 7
+	sbi	PORTC, 7
 	inc	temp
 	out 	PORTD, temp
-	cbi	PORTC, 3
-	sbi	PORTC, 3
+	cbi	PORTC, 7
+	sbi	PORTC, 7
 	inc	temp
 	nop
 	nop
@@ -329,7 +625,47 @@ exit_write_fast:
 	ret
 ;===================;
 
+;============================================;
+; Initialize the DS1621 with standard values ;
+;--------------------------------------------;
+init_thermostat:
+	rcall	twi_init		; Init TWI
 
+
+	rcall	twi_start		; --- SET CONFIG ----
+
+	ldi	data, THERMO_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+	rcall	twi_check		
+	
+	ldi	data, SET_CFG		; Send config command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	ldi	data, 0x00		; Set config active low and continous
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	rcall	twi_stop
+
+	rcall	twi_start		; --- START THERMOSTAT ----
+
+	ldi	data, THERMO_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+	rcall	twi_check		
+	
+	ldi	data, START_CONV	; Send start command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+	rcall	twi_check
+
+	rcall	twi_stop
+
+	ret
 
 ;=============;
 ; EEPROM data ;
