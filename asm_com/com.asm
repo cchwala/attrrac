@@ -43,9 +43,9 @@
 .set   EEWE  = EEPE 
 
 .def temp 	   = r16
-.def data  	   = r17 
-.def n_samples1    = r18
-.def n_samples2    = r19
+.def data  	   = r17 	; holds the byte sent via USB or TWI
+.def buffer1       = r18
+.def buffer2       = r19
 .def n_samples3    = r20
 .def eeprom_buffer = r21
 .def t_msb 	   = r22	; Case temperature MSB
@@ -74,9 +74,9 @@
 .equ DAT_R_NACK	= 0x58
 
 
-;=================;
-; DS1621 settings ;
-;=================;
+;====================;
+; DS1621 TWI ALIASES ;
+;====================;
 .equ THERMO_ADDRS_W	= 0b10010000	; Address for writting
 .equ THERMO_ADDRS_R	= 0b10010001	; Address for reading
 
@@ -87,20 +87,27 @@
 .equ START_CONV		= 0xEE		; Start conversion
 .equ STOP_CONV		= 0x22		; Stop conversion
 
+;==================;
+; CPLD TWI ALIASES ;
+;==================;
 
-;===========================;
-; PC communication commands ;
-;===========================;
+.equ CPLD_ADDRS_W	= 0b00001010	; Addres for writing
+.equ CPLD_ADDRS_R	= 0b00001011	; Addres for reading
+
+;========================================;
+; Communication commands for CPLD and PC ;
+;========================================;
 .equ ERROR 		= 0x00
-.equ SET_NUM_SAMPLES 	= 0x01
-.equ SET_MODE		= 0x02
-.equ SET_PW		= 0x03
-.equ SET_RANGE		= 0x04
-.equ SET_RANGE_INCR	= 0x05
-.equ START_MSRMNT 	= 0x06
-.equ SET_CASE_TEMP	= 0x07
 
+.equ SET_NUM_SAMPLES 	= 0b00000110
+.equ SET_MODE		= 0b00001000
+.equ SET_PW		= 0b00000010
+.equ SET_DELAY		= 0b00000100
+.equ START_MSRMNT 	= 0b00011110
+
+.equ SET_CASE_TEMP	= 0x07
 .equ GET_CASE_TEMP	= 0x17
+
 
 
 reset:
@@ -136,11 +143,20 @@ check_usb_bits:
 	cpi	data, SET_NUM_SAMPLES
 	breq	com_set_num_samples
 
+	cpi	data, SET_PW
+	breq	com_set_pw
+
+	cpi	data, SET_DELAY
+	breq	com_set_delay
+
+	cpi	data, SET_MODE
+	breq	jmp_set_mode
+
 	cpi	data, START_MSRMNT
-	breq	com_start_msrmnt
+	breq	jmp_start_msrmnt
 
 	cpi	data, SET_CASE_TEMP
-	breq	com_set_case_temp
+	breq	jmp_set_case_temp
 
 	cpi	data, GET_CASE_TEMP
 	breq	jmp_get_case_temp
@@ -149,32 +165,170 @@ check_usb_bits:
 	rcall	write_byte_usb
 	ret				; Return to main
 
-; if relative branch out of reach
+; helpers if branch out of reach
+jmp_set_mode:
+	rjmp	com_set_mode
+
+jmp_start_msrmnt:
+	rjmp	com_start_msrmnt
+
+jmp_set_case_temp:
+	rjmp	com_set_case_temp
+
 jmp_get_case_temp:
 	rjmp 	com_get_case_temp
 
-;------------------------------------;
-; Sets the 3byte value for n_samples ;
-;------------------------------------;
+;-------------------------------------;
+; Sets the 2 byte value for n_samples ;
+;-------------------------------------;
 com_set_num_samples:
 	rcall	write_byte_usb		; write back received command byte to PC
 	rcall	read_byte_usb		; get 1st byte from usb
-	mov	n_samples1, data; 
+	mov	buffer1, data; 
 	rcall	read_byte_usb		; get 2nd byte from usb
-	mov	n_samples2, data; 
-	rcall	read_byte_usb		; get 3rd byte from usb
-	mov	n_samples3, data; 
+	mov	buffer2, data; 
 
-	rcall 	n_samples_to_eeprom	; Save value in EEPROM
+; Move the eeprom saving routine to a spererate command, 
+; because saving it every time would damage the eeprom after
+; 100.000 write cycles
+;	rcall 	n_samples_to_eeprom	; Save value in EEPROM
+;	rcall	n_samples_from_eeprom	; Get value from EEPROM
 
-	rcall	n_samples_from_eeprom	; Get value from EEPROM
-
-	mov	data, n_samples1; 
+	mov	data, buffer1 
 	rcall 	write_byte_usb		; write back 1st byte
-	mov	data, n_samples2; 
+	mov	data, buffer2 
 	rcall 	write_byte_usb		; write back 2st byte
-	mov	data, n_samples3; 
-	rcall 	write_byte_usb		; write back 3st byte
+
+	rcall	twi_start		; --- START TWI ---
+
+	ldi	data, CPLD_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+;	rcall	twi_check		
+	
+	ldi	data, SET_NUM_SAMPLES	; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	mov	data, buffer1	; Write 1st byte to CPLD
+	rcall	twi_write		; 
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	mov	data, buffer2	; Write 2nd byte to CPLD
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check	
+
+	rcall	twi_stop
+
+	ret
+
+
+;-------------------------;
+; Set pulse width in CPLD ;
+;-------------------------;
+com_set_pw:
+	rcall	write_byte_usb		; write back received command byte to PC
+	rcall	read_byte_usb		; Read PW byte from USB
+	rcall	write_byte_usb		; Write it back for error checking
+	push 	data			; PW on stack	
+
+	rcall	twi_init		; Init TWI
+
+	rcall	twi_start		; --- START TWI ---
+
+	ldi	data, CPLD_ADDRS_W	; Send address for CPLD + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+;	rcall	twi_check		
+	
+	ldi	data, SET_PW		; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	pop	data			; Pop PW from stack
+	rcall	twi_write		; Write it to CPLD
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	rcall	twi_stop
+
+	ret
+
+;-------------------;
+; Set delay in CPLD ;
+;-------------------;
+com_set_delay:
+	rcall	write_byte_usb		; write back received command byte to PC
+	rcall	read_byte_usb		; get 1st byte from usb
+	mov	buffer1, data; 
+	rcall	read_byte_usb		; get 2nd byte from usb
+	mov	buffer2, data; 
+
+	mov	data, buffer1 
+	rcall 	write_byte_usb		; write back 1st byte
+	mov	data, buffer2 
+	rcall 	write_byte_usb		; write back 2st byte
+
+	rcall	twi_start		; --- START TWI ---
+
+	ldi	data, CPLD_ADDRS_W	; Send address for thermostat + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+;	rcall	twi_check		
+	
+	ldi	data, SET_DELAY		; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	mov	data, buffer1	; Write 1st byte to CPLD
+	rcall	twi_write		; 
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	mov	data, buffer2	; Write 2nd byte to CPLD
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	rcall	twi_stop
+
+	ret
+
+;------------------;
+; Set mode in CPLD ;
+;------------------;
+com_set_mode:
+	rcall	write_byte_usb		; write back received command byte to PC
+	rcall	read_byte_usb		; Read PW byte from USB
+	rcall	write_byte_usb		; Write it back for error checking
+	push 	data			; PW on stack	
+
+	rcall	twi_init		; Init TWI
+
+	rcall	twi_start		; --- START TWI ---
+
+	ldi	data, CPLD_ADDRS_W	; Send address for CPLD + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+;	rcall	twi_check		
+	
+	ldi	data, SET_MODE		; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	pop	data			; Pop PW from stack
+	rcall	twi_write		; Write it to CPLD
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	rcall	twi_stop
+
 	ret
 
 ;-------------------;
@@ -182,8 +336,26 @@ com_set_num_samples:
 ;-------------------;
 com_start_msrmnt:
 	rcall	write_byte_usb		; write back received command byte to PC
-	rcall 	n_samples_from_eeprom	; get n_samples1,2,3 from eeprom
-	rcall	write_fast_init		; write data n_sample-times
+
+; not used anymore, but maybe implement some eeprom things
+;	rcall 	n_samples_from_eeprom	; get n_samples(1,2,3) from eeprom
+;	rcall	write_fast_init		; write data n_sample-times
+
+	rcall	twi_init		; Init TWI
+
+	rcall	twi_start		; --- START TWI ---
+
+	ldi	data, CPLD_ADDRS_W	; Send address for CPLD + write
+	rcall	twi_write
+	ldi	twi_stat, SLA_W_ACK	; Check status (write ACK)
+;	rcall	twi_check		
+	
+	ldi	data, START_MSRMNT	; Send command
+	rcall	twi_write
+	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
+;	rcall	twi_check
+
+	rcall	twi_stop
 
 	ret
 
@@ -208,7 +380,6 @@ com_set_case_temp:
 	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
 	rcall	twi_check
 
-;	ldi	data, 31		; Set TH
 	rcall	read_byte_usb		; Read T_HIGH byte from USB
 	rcall	write_byte_usb		; Write it back for error checking
 	push 	data			; T_HIGH on stack
@@ -235,8 +406,7 @@ com_set_case_temp:
 	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
 	rcall	twi_check
 
-;	ldi	data, 31		; Set TL 
-	pop	data			; Get T_HIGH from stack
+	pop	data			; Pop T_HIGH from stack
 	rcall	twi_write		; And write as T_LOW to thermostat
 	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
 	rcall	twi_check
@@ -440,17 +610,17 @@ rcall write_byte_usb
 
 
 ;================================;
-; Write n_samples1 2 3 to EEPROM ;
+; Write buffer1 2 3 to EEPROM ;
 ;--------------------------------;
 n_samples_to_eeprom:
 	ldi     ZL,low(n1)       	; Set pointer to eeprom address
     	ldi     ZH,high(n1)     	; 
-	mov	eeprom_buffer,n_samples1; Copy data to eeprom buffer
+	mov	eeprom_buffer,buffer1; Copy data to eeprom buffer
 	rcall	write_eeprom		; Write buffer to eeprom
 
 	ldi     ZL,low(n2)       	; Same for n2
     	ldi     ZH,high(n2)     	; 
-	mov	eeprom_buffer,n_samples2; 
+	mov	eeprom_buffer,buffer2; 
 	rcall	write_eeprom		; 
 
 	ldi     ZL,low(n3)       	; Same for n3
@@ -480,18 +650,18 @@ write_eeprom:
 
 
 ;=================================;
-; Read n_samples1 2 3 from EEPROM ;
+; Read buffer1 2 3 from EEPROM ;
 ;---------------------------------;
 n_samples_from_eeprom:
 	ldi     ZL,low(n1)       	; Set pointer to eeprom address
     	ldi     ZH,high(n1)     	; 
 	rcall	read_eeprom		; Write buffer to eeprom
-	mov	n_samples1,eeprom_buffer; Copy data from eeprom buffer
+	mov	buffer1,eeprom_buffer; Copy data from eeprom buffer
 
 	ldi     ZL,low(n2)       	; Same for n2
     	ldi     ZH,high(n2)     	; 
 	rcall	read_eeprom		; 
-	mov	n_samples2,eeprom_buffer;
+	mov	buffer2,eeprom_buffer;
 
 	ldi     ZL,low(n3)       	; Same for n3
     	ldi     ZH,high(n3)     	; 
@@ -613,8 +783,8 @@ write_fast:
 	nop
 	nop
 
-	subi 	n_samples1, 1		; decrement 24bit loop counter 'n_samples'
-	sbci 	n_samples2, 0		;
+	subi 	buffer1, 1		; decrement 24bit loop counter 'n_samples'
+	sbci 	buffer2, 0		;
 	sbci 	n_samples3, 0		;
 
 	breq	exit_write_fast		; exit loop if counter reached zero
@@ -666,6 +836,7 @@ init_thermostat:
 	rcall	twi_stop
 
 	ret
+
 
 ;=============;
 ; EEPROM data ;
