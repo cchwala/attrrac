@@ -46,11 +46,14 @@
 .def data  	   = r17 	; holds the byte sent via USB or TWI
 .def buffer1       = r18
 .def buffer2       = r19
-.def n_samples3    = r20
+.def counter	   = r20
 .def eeprom_buffer = r21
 .def t_msb 	   = r22	; Case temperature MSB
 .def t_lsb	   = r23	; Case temperature LSB
 .def twi_stat	   = r24
+
+
+.equ MAX_USB_READ_TRIES = 100	; Max number of tries to read from usb
 
 ;=======================================;
 ; TWI Bitrate = 100 kHz for 8 MHz clock ;
@@ -59,7 +62,6 @@
 .equ TWI_PRESCALER	= 1
 ;.equ TWI_BIT_RATE	= 255	; SLOWEST SETTING
 ;.equ TWI_PRESCALER	= 64
-
 
 
 ;====================;
@@ -91,8 +93,8 @@
 ; CPLD TWI ALIASES ;
 ;==================;
 
-.equ CPLD_ADDRS_W	= 0b00001010	; Addres for writing
-.equ CPLD_ADDRS_R	= 0b00001011	; Addres for reading
+.equ CPLD_ADDRS_W	= 0b00001010	; Address for writing
+.equ CPLD_ADDRS_R	= 0b00001011	; Address for reading
 
 ;========================================;
 ; Communication commands for CPLD and PC ;
@@ -108,28 +110,30 @@
 .equ SET_CASE_TEMP	= 0x07
 .equ GET_CASE_TEMP	= 0x17
 
+.equ SET_RESET_COUNT	= 0x09
+.equ GET_RESET_COUNT	= 0x19
 
+;#############################################################################
+;                          P R O G R A M    S T A R T
+;#############################################################################
 
 reset:
   	ldi 	temp, LOW(RAMEND)	; LOW-Byte of upper RAM-Adress
         out 	SPL, temp
         ldi 	temp, HIGH(RAMEND)	; HIGH-Byte of upper RAM-Adress
         out 	SPH, temp 
-
+	rcall	incr_reset_counter
 	rcall	init_thermostat		; Initialize the DS1621 over TWI
 
 main:
-	; TEST
-;	rcall com_get_case_temp
-;	ldi data, 0xff
-;	rcall write_byte_usb
-;	rjmp main
-
-	; Main usually starts here
-	rcall	read_byte_usb	
-	rcall	check_usb_bits
+	wdr				; feed the watchdog
+	rcall	read_byte_usb_max_tries	; try to read byte from usb for
+					; MAX_USB_READ_TRIES times
+	brtc    main			; jmp to main if T_FLAG is cleared, 
+					; thas is, no byte was received
+	rcall	check_usb_bits		; check which command was received
 	rjmp	main
-
+ 
 
 
 ;====================================;
@@ -160,6 +164,12 @@ check_usb_bits:
 
 	cpi	data, GET_CASE_TEMP
 	breq	jmp_get_case_temp
+
+	cpi	data, SET_RESET_COUNT
+	breq	jmp_set_reset_count
+
+	cpi	data, GET_RESET_COUNT
+	breq	jmp_get_reset_count
 		
 	ldi	data, ERROR		; If no match was found, send error
 	rcall	write_byte_usb
@@ -177,6 +187,12 @@ jmp_set_case_temp:
 
 jmp_get_case_temp:
 	rjmp 	com_get_case_temp
+
+jmp_set_reset_count:
+	rjmp	com_set_reset_count
+
+jmp_get_reset_count:
+	rjmp	com_get_reset_count
 
 ;-------------------------------------;
 ; Sets the 2 byte value for n_samples ;
@@ -285,12 +301,12 @@ com_set_delay:
 	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
 ;	rcall	twi_check
 
-	mov	data, buffer1	; Write 1st byte to CPLD
+	mov	data, buffer1		; Write 1st byte to CPLD
 	rcall	twi_write		; 
 	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
 ;	rcall	twi_check
 
-	mov	data, buffer2	; Write 2nd byte to CPLD
+	mov	data, buffer2		; Write 2nd byte to CPLD
 	rcall	twi_write
 	ldi	twi_stat, DAT_W_ACK	; Check status (data transmitted)
 ;	rcall	twi_check
@@ -466,11 +482,42 @@ com_get_case_temp:
 
 	ret
 
+;-------------------;
+; Set reset counter ;
+;-------------------;
+com_set_reset_count:
+	rcall	write_byte_usb		; write back received command byte to PC
+
+	ldi     ZL,low(reset_counter)  	; Set pointer to eeprom address
+    	ldi     ZH,high(reset_counter) 	; 
+	ldi	eeprom_buffer,0		; Copy '0' to buffer
+	rcall	write_eeprom		; Write buffer to eeprom
+
+	ret
+
+;-------------------;
+; Get reset counter ;
+;-------------------;
+com_get_reset_count:
+	rcall	write_byte_usb		; write back received command byte to PC
+
+	ldi     ZL,low(reset_counter)  	; Set pointer to eeprom address
+    	ldi     ZH,high(reset_counter) 	; 
+	rcall	read_eeprom		; Read buffer from eeprom
+	mov	data,eeprom_buffer	; Copy data from eeprom buffer
+
+	rcall	write_byte_usb		; And transmit it to PC
+
+	ret
 
 ;------------------------------------;
 ; E N D  COMMUNICATION STATE MACHINE ;
 ;====================================;
 
+
+;#############################################################################
+;		           T W I    M E T H O D S
+;#############################################################################
 
 ;====================;
 ; Initialize the TWI ;
@@ -596,8 +643,8 @@ wait5:
 ; TWI ERROR ;
 ;-----------;
 twi_error:
-ldi data, 0xFF
-rcall write_byte_usb
+	ldi 	data, 0xFF
+	rcall 	write_byte_usb
 	rcall	twi_stop		; STOP
 		
 	ldi	temp, (0<<TWEN)		; TWI OFF
@@ -609,23 +656,22 @@ rcall write_byte_usb
 ;===========;
 
 
+;#############################################################################
+; 			 E E P R O M    M E T H O D S
+;#############################################################################
+
 ;================================;
 ; Write buffer1 2 3 to EEPROM ;
 ;--------------------------------;
 n_samples_to_eeprom:
 	ldi     ZL,low(n1)       	; Set pointer to eeprom address
     	ldi     ZH,high(n1)     	; 
-	mov	eeprom_buffer,buffer1; Copy data to eeprom buffer
+	mov	eeprom_buffer,buffer1	; Copy data to eeprom buffer
 	rcall	write_eeprom		; Write buffer to eeprom
 
 	ldi     ZL,low(n2)       	; Same for n2
     	ldi     ZH,high(n2)     	; 
 	mov	eeprom_buffer,buffer2; 
-	rcall	write_eeprom		; 
-
-	ldi     ZL,low(n3)       	; Same for n3
-    	ldi     ZH,high(n3)     	; 
-	mov	eeprom_buffer,n_samples3; 
 	rcall	write_eeprom		; 
     
     	ret
@@ -656,18 +702,13 @@ n_samples_from_eeprom:
 	ldi     ZL,low(n1)       	; Set pointer to eeprom address
     	ldi     ZH,high(n1)     	; 
 	rcall	read_eeprom		; Write buffer to eeprom
-	mov	buffer1,eeprom_buffer; Copy data from eeprom buffer
+	mov	buffer1,eeprom_buffer	; Copy data from eeprom buffer
 
 	ldi     ZL,low(n2)       	; Same for n2
     	ldi     ZH,high(n2)     	; 
 	rcall	read_eeprom		; 
 	mov	buffer2,eeprom_buffer;
-
-	ldi     ZL,low(n3)       	; Same for n3
-    	ldi     ZH,high(n3)     	; 
-	rcall	read_eeprom		;
-	mov	n_samples3,eeprom_buffer; 
-    
+  
     	ret
 ;================================;
 
@@ -687,10 +728,14 @@ read_eeprom:
 	ret
 ;=================================;
 
+;#############################################################################
+;			  U S B    M E T H O D S
+;#############################################################################
 
-;===================================;
-; Read single byte command from USB ;
-;-----------------------------------;
+
+;====================================================;
+; Read single byte command from USB (unlimited tries);
+;----------------------------------------------------;
 read_byte_usb:
 	ldi 	temp, 0x00	
 	out 	DDRD, temp		; PORTD is input
@@ -707,10 +752,12 @@ read_byte_usb:
 	sbi 	DDRC, 7			; PORTC 7 output
 	sbi	PORTC, 7		; set it high
 
+	clr	counter			; clear the counter for the wait loop
+
 wait_for_RXF:
-	sbis	PINC, 4 		; exit loop if RXF (read ready) is low
+	sbis	PINC, 4 		; exit wait loop if RXF (read ready) is low
 	rjmp 	read_byte
-	rjmp 	wait_for_RXF	
+	rjmp 	wait_for_RXF
 
 read_byte:
 	cbi 	PORTC, 5 		; pull RD low to read from usb chip
@@ -718,8 +765,52 @@ read_byte:
 	in 	data, PIND		; read
 	sbi 	PORTC, 5		; set RD to high again
 	ret
-;===================================;
 
+;====================================================;
+
+
+;====================================================;
+; Read single byte command from USB (limited tries)  ;
+;----------------------------------------------------;
+read_byte_usb_max_tries:
+	ldi 	temp, 0x00	
+	out 	DDRD, temp		; PORTD is input
+	ldi	temp, 0xFF
+	out	PORTD, temp		; pull-ups active
+
+	cbi 	DDRC, 4			; PORTC 4 input
+	sbi	PORTC, 4		; pull-up active
+	cbi	DDRC, 6			; PORTC 6 input
+	sbi	PORTC, 6		; pull-up active
+
+	sbi 	DDRC, 5			; PORTC 5 output
+	sbi	PORTC, 5		; set it high
+	sbi 	DDRC, 7			; PORTC 7 output
+	sbi	PORTC, 7		; set it high
+
+	clr	counter			; clear the counter for the wait loop
+
+wait_for_RXF_max_tries:
+	sbis	PINC, 4 		; exit wait loop if RXF (read ready) is low
+	rjmp 	read_byte_max_tries
+	inc	counter			; if RXF != low, increment counter
+	cpi	counter, MAX_USB_READ_TRIES; if counter reaches MAX_TRIES
+	breq	no_byte_read		; exit without having read a byte
+	rjmp 	wait_for_RXF_max_tries
+
+read_byte_max_tries:
+	cbi 	PORTC, 5 		; pull RD low to read from usb chip
+	nop				; !!! KEEP THIS FOR TIMING !!!
+	in 	data, PIND		; read
+	sbi 	PORTC, 5		; set RD to high again
+	set				; set the T_FLAG which is checked in main
+	ret
+
+no_byte_read:
+	clt				; clear the T_FLAG which is checked in main
+	ret
+	
+;===================================;
 
 ;============================;
 ; Write a single byte to USB ;
@@ -785,7 +876,6 @@ write_fast:
 
 	subi 	buffer1, 1		; decrement 24bit loop counter 'n_samples'
 	sbci 	buffer2, 0		;
-	sbci 	n_samples3, 0		;
 
 	breq	exit_write_fast		; exit loop if counter reached zero
 
@@ -794,6 +884,20 @@ write_fast:
 exit_write_fast:
 	ret
 ;===================;
+
+;=============================;
+; Increment the reset counter ;
+;-----------------------------;
+incr_reset_counter:
+	ldi     ZL,low(reset_counter)  	; Set pointer to eeprom address
+    	ldi     ZH,high(reset_counter) 	; 
+	rcall	read_eeprom		; Read from eeprom to buffer
+	inc	eeprom_buffer		; Increment counter in buffer
+	rcall	write_eeprom		; Write buffer to eeprom
+
+	ret
+;=============================;
+
 
 ;============================================;
 ; Initialize the DS1621 with standard values ;
@@ -838,9 +942,10 @@ init_thermostat:
 	ret
 
 
-;=============;
-; EEPROM data ;
-;=============;
+;#############################################################################
+;	        	      E E P R O M   D A T A
+;#############################################################################
+
 .ESEG
 
 ; The 3 bytes of n_samples, default = 100
@@ -850,3 +955,6 @@ n2:
 	.db	0
 n3:
 	.db	0
+
+reset_counter:
+	.db	-1
