@@ -3,7 +3,6 @@
 #include "ftd2xx.h"
 #include <math.h>
 
-
 #define BUF_SIZE 40000		
 
 //////////////
@@ -13,25 +12,28 @@
 // general
 #define ERROR			0x00
 
-// CPLD commands
+// Commands for uC sent via USB
+//
+// for CPLD
 #define SET_PW			0x02
 #define SET_DELAY		0x04
 #define SET_NUM_SAMPLES 0x06
 #define SET_MODE 		0x08
 #define START_MSRMNT 	0x1E
+// for DS1621 thermostat
+#define SET_CASE_TEMP	0x07
+#define GET_CASE_TEMP	0x17
+// for uC itself
+#define SET_RESET_COUNT 0x09
+#define GET_RESET_COUNT 0x19
+// not used
+#define SET_RANGE_INCR	0x05
 
 // CPLD modes
 #define CROSSPOL		0x04
 #define COPOL			0x02
 #define CALIBRATE		0x06
 #define	RADIOMETER		0x08
-
-// DS1621 commands
-#define SET_CASE_TEMP	0x07
-#define GET_CASE_TEMP	0x17
-
-// not used
-#define SET_RANGE_INCR	0x05
 
 
 ///////////////
@@ -43,7 +45,7 @@ int open_device(FT_HANDLE *handle)
 {
 	FT_STATUS ftStatus;
 
-	printf("Open FTDI USB device\n\n");
+	//printf("Open FTDI USB device\n\n");
 	ftStatus = FT_Open(0, handle);
 	if(ftStatus != FT_OK) {
 		// Reconnect the device
@@ -199,7 +201,7 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 	char num[4]; 		// hods the 4 bytes of  n_samples
 	
 	// The max number of samples allowed is 2^16 (2 byte)
-	if(n_samples < 0 || n_samples > pow(2,16)){
+	if(n_samples < 0 || n_samples >= pow(2,16)){
 			printf("Unappropriate number of samples. Exit!\n");
 			return 1;
 			}
@@ -224,7 +226,7 @@ int set_delay(FT_HANDLE ftHandle, int delay)
 	char num[4]; 		// holds the 4 bytes of delay
 	
 	// The max value of the delay is 2^16 (2 byte)
-	if(delay < 0 || delay > pow(2,16)){
+	if(delay < 0 || delay >= pow(2,16)){
 			printf("Unappropriate value for delay. Exit!\n");
 			return 1;
 			}
@@ -247,8 +249,8 @@ int set_delay(FT_HANDLE ftHandle, int delay)
 int set_pw(FT_HANDLE ftHandle, int pw_int)
 {
 	// The max number of samples allowed is 2^8 (1 byte)
-	if(pw_int < 0 || pw_int > pow(2,8)){
-			printf("Unappropriate number of samples. Exit!\n");
+	if(pw_int < 0 || pw_int >= pow(2,8)){
+			printf("Unappropriate value fow pulse width. Exit!\n");
 			return 1;
 			}
 	printf("Set pw to %d\n", pw_int);
@@ -359,6 +361,28 @@ int get_case_temp(FT_HANDLE ftHandle)
 	return 0;
 }
 
+int set_reset_count(FT_HANDLE ftHandle)
+{
+
+	printf("Set reset count back to 1\n");
+	write_byte(ftHandle, SET_RESET_COUNT);
+
+	return 0;
+}
+
+int get_reset_count(FT_HANDLE ftHandle)
+{
+	int reset_count = 0;
+
+	printf("Get reset count\n");
+	write_byte(ftHandle, GET_RESET_COUNT);
+	reset_count = (int)read_byte(ftHandle);
+
+	printf("%d resets\n\n", reset_count);
+
+	return 0;
+}
+
 /////////////
 // GLOBALS //
 /////////////
@@ -392,27 +416,75 @@ int main(int argc, char *argv[])
 	//FT_SetTimeouts(ftHandle, 0, 0);
 	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 
-	//set_case_temp(ftHandle,30);
-	//get_case_temp(ftHandle);
+	if (argc == 3 && strcmp(argv[1],"set_case_temp") == 0)
+		set_case_temp(ftHandle,atoi(argv[2]));
 	
-	set_pw(ftHandle, 170);
-	printf("\n");
-	sleep(1);
+	else if (argc == 2 && strcmp(argv[1],"get_case_temp") == 0)
+		get_case_temp(ftHandle);
+		
+	else if (argc == 2 && strcmp(argv[1],"set_reset_count") == 0)
+		set_reset_count(ftHandle);
 	
-	set_num_samples(ftHandle, 40000);
-	printf("\n");
-	sleep(1);
-	
-	set_mode(ftHandle, CROSSPOL);
-	printf("\n");
-	sleep(1);
-	
-	set_delay(ftHandle, 600);
-	printf("\n");
-	sleep(1);
+	else if (argc == 2 && strcmp(argv[1],"get_reset_count") == 0)
+		get_reset_count(ftHandle);
 
-	start_msrmnt(ftHandle, 40000);
-	printf("\n");
+	else if (argc == 3 && strcmp(argv[1],"set_pw") == 0)
+		set_pw(ftHandle, atoi(argv[2]));
+
+	else if (argc == 3 && strcmp(argv[1],"set_n_samples") == 0)
+		set_num_samples(ftHandle, atoi(argv[2]));
+	
+	else if (argc == 3 && strcmp(argv[1],"set_delay") == 0)
+		set_delay(ftHandle, atoi(argv[2]));
+
+	else if (argc == 3 && strcmp(argv[1],"set_mode") == 0){
+		if (strcmp(argv[2],"CROSSPOL") == 0)
+			set_mode(ftHandle, CROSSPOL);
+		else if (strcmp(argv[2],"COPOL") == 0)
+			set_mode(ftHandle, COPOL);
+		else if (strcmp(argv[2],"RADIOMETER") == 0)
+			set_mode(ftHandle, RADIOMETER);
+		else if (strcmp(argv[2],"CALIBRATE") == 0)
+			set_mode(ftHandle, CALIBRATE);
+		else{
+			printf ("Unknown mode. Exit \n");
+			exit(1) ;
+		}
+	}
+
+	else if (argc == 2 && strcmp(argv[1],"start") == 0)
+		start_msrmnt(ftHandle, 40000);
+
+	else if (argc == 1){
+		set_pw(ftHandle, 100);
+		printf("\n");
+		sleep(1);
+		set_num_samples(ftHandle, 4000);
+		printf("\n");
+		sleep(1);
+		set_delay(ftHandle, 600);
+		printf("\n");
+		sleep(1);
+		set_mode(ftHandle, COPOL);
+		printf("\n");
+		sleep(1);
+		start_msrmnt(ftHandle, 40000);
+	}
+		
+    else if (argc == 2 && strcmp(argv[1],"-h") == 0){
+		printf ("Usage: usb_control set_pw VALUE \n");
+		printf ("                   set_n_samples VALUE\n");
+		printf ("                   set_delay VALUE\n");
+		printf ("                   set_mode (COPOL|CROSSPOL|");
+		printf ("CALIBRATE|RADIOMETER)\n");
+		printf ("                   start \n\n");
+		exit(1);
+	}
+
+	else{
+		printf ("Unknown command. Type: usb_control -h for usage\n");
+		exit(1);
+	}
 
 	FT_Close(ftHandle);
 	
