@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include "ftd2xx.h"
 #include <math.h>
-
-#define BUF_SIZE 40000		
+#include <pthread.h>
+#include <sched.h>
 
 //////////////
 // COMMANDS //
@@ -35,6 +35,14 @@
 #define CALIBRATE		0x06
 #define	RADIOMETER		0x08
 
+// Function return codes
+#define ERR				1
+#define OK				0
+
+// USB serial number
+// Must be altered if a new FTDI device is used
+#define USB_SERIAL_NUM	"0x804c85c"
+
 
 ///////////////
 // FUNCTIONS //
@@ -44,24 +52,29 @@
 int open_device(FT_HANDLE *handle)
 {
 	FT_STATUS ftStatus;
-
-	//printf("Open FTDI USB device\n\n");
+	
+	// Use if you are sure that you know the device number
 	ftStatus = FT_Open(0, handle);
+	
+	// Open by serial number to make sure the correct device is selected
+	//ftStatus = FT_OpenEx("0x804c710", FT_OPEN_BY_SERIAL_NUMBER, handle);
+	
 	if(ftStatus != FT_OK) {
+		printf("FT_Open failed once\n");
 		// Reconnect the device
-		//ftStatus = FT_CyclePort(ftHandle);
+		ftStatus = FT_CyclePort(*handle);
 		if(ftStatus != FT_OK) {
 			printf("FT_Cycle port failed \n");
-			return 1;
 			}
+	 	//ftStatus = FT_OpenEx(USB_SERIAL_NUM,FT_OPEN_BY_SERIAL_NUMBER,handle);
 		ftStatus = FT_Open(0, handle);
 		if(ftStatus != FT_OK) {
 			printf("FT_Open failed twice\n");
-			return 1;
+			return ERR;
 			}
-		printf("FT_Open failed once. Reconnected.\n");
+		printf("Reconnected.\n");
 	}
-	return 0;
+	return OK;
 }
 
 // Helper function to get single bytes of a int variable.
@@ -93,41 +106,6 @@ unsigned int bytes_to_int(char *chars)
 	return value;
 }
 
-// Write a byte via USB and check its transmission
-// by reading back, hopefully the same byte
-int write_byte(FT_HANDLE ftHandle, char byte)
-{
-	char * pcBufRead;
-	char   cBufWrite[1];
-	int write_buffer_size = 1;
-	int read_buffer_size = 1;
-	DWORD dwBytesRead, dwBytesWritten;
-
-	pcBufRead = (char *)malloc(read_buffer_size);
-
-	// Send byte
-	cBufWrite[0] = byte;
-	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
-	//printf("Written 0x%x \n", cBufWrite[0]);
-	
-	// Check what the uC returns, it should be the same byte
-	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
-	printf("Sent: %x Received: %x \n", cBufWrite[0], pcBufRead[0]);
-	if (pcBufRead[0] != cBufWrite[0])
-	{
-		printf("USB transmission problem.\n");
-		printf("Sent: %x Received: %x \n", cBufWrite[0], pcBufRead[0]);
-		// Purge buffers
-		FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-		free(pcBufRead);
-		return 1;
-	}
-	
-	free(pcBufRead);
-
-	return 0;
-}
-
 // Read a byte via USB
 char read_byte(FT_HANDLE ftHandle)
 {
@@ -139,6 +117,9 @@ char read_byte(FT_HANDLE ftHandle)
 	pcBufRead = (char *)malloc(read_buffer_size);
 
 	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+	if (dwBytesRead != 1)
+		printf("No byte read. Timeout\n");
+
 	//printf("Received 0x%x \n", pcBufRead[0]);
 
 	value = pcBufRead[0];
@@ -146,6 +127,48 @@ char read_byte(FT_HANDLE ftHandle)
 	free(pcBufRead);
 
 	return value;
+}
+
+// Write a byte via USB and check its transmission
+// by reading back, hopefully the same byte
+int write_byte(FT_HANDLE ftHandle, char byte)
+{
+	char byteRead;
+	char pcBufRead[1];
+	char cBufWrite[1];
+	int write_buffer_size = 1;
+	int read_buffer_size = 1;
+	DWORD dwBytesRead, dwBytesWritten;
+
+	// not needed of only one byte is read
+	//pcBufRead = (char *)malloc(read_buffer_size);
+		
+	// Purge the buffers because sometimes the uC leaves something
+	// especially in the TX buffer
+	//
+	// has no effect!?
+	//FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+	
+	// Send byte
+	cBufWrite[0] = byte;
+	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
+	
+	// Check what the uC returns, it should be the same byte
+	byteRead = read_byte(ftHandle);
+	//FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+	
+	if (byteRead != cBufWrite[0])
+	{
+		printf("USB transmission problem.\n");
+		printf("Sent: %x Received: %x \n", cBufWrite[0], byteRead);
+		// Purge buffers
+		FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+		return 1;
+	}
+	
+	//free(pcBufRead);
+
+	return 0;
 }
 
 // Write a byte array of size 'size' and after complete write,
@@ -194,6 +217,11 @@ int write_bytes(FT_HANDLE ftHandle, char *bytes, int size)
 	return 0;
 }
 
+void *FT_Read_threaded(FT_HANDLE ftHandle, LPVOID pcBufRead, 
+					   DWORD read_buffer_size, LPDWORD dwBytesRead)
+{
+	FT_Read(ftHandle, pcBufRead, read_buffer_size, dwBytesRead);
+}
 
 // Set the number of samples for the measurement
 int set_num_samples(FT_HANDLE ftHandle, int n_samples)
@@ -212,8 +240,6 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 
 	// Send command to change number of samples
 	write_byte(ftHandle, SET_NUM_SAMPLES);
-
-	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 	
 	// Send the value for the number of samples
 	write_bytes(ftHandle, num, 2);
@@ -270,54 +296,116 @@ int set_mode(FT_HANDLE ftHandle,int int_mode)
 	return 0;
 }
 
+// Structure for passing args to threaded FT_Read
+struct thread_args{
+	FT_HANDLE ftHandle;
+	unsigned char * pcBufRead;
+	int read_buffer_size;
+	DWORD dwBytesRead;
+};
+
+void *FT_Read_thread(void *args)
+{
+	FT_STATUS status;
+	struct thread_args *a;
+	a = (struct thread_args *) args;
+	status = FT_Read(a->ftHandle, a->pcBufRead, a->read_buffer_size, 
+											   &a->dwBytesRead);
+	
+	printf("THREAD EXITS. read buff size = %d \n", a->read_buffer_size);
+	pthread_exit(NULL);
+}
 
 int start_msrmnt(FT_HANDLE ftHandle, int n_samples)
 {
 	int i;
 	int errorcount = 0;
-	char * pcBufRead;
-	int read_buffer_size = 1;
-	DWORD dwBytesRead;
+	pthread_t tdi;
+	pthread_attr_t tattr;
+	struct sched_param param;
+
+	// Structure for passing args to threaded FT_Read
+	struct thread_args a;
+	a.ftHandle = ftHandle;
+	a.read_buffer_size = n_samples;
+	a.dwBytesRead = 0;
 
 	printf("Start measuring \n");
 	// Send the command to start measuring
 	write_byte(ftHandle, START_MSRMNT);
-	return 0;
-//!!!!!
-// From here on, still only a testing function of the usb transmission.
-//!!!!!
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// If the buffers are purge an error
-	// occurs. Always, and mostly at
-	// transmission 122. Why that????!!!???????????????????????????
- 	// 
-	// FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 	
-	read_buffer_size = n_samples;
-	pcBufRead = (char *)malloc(read_buffer_size);
+	// Keep commented out. The buffer already contains the first 
+	// data from the uC. The c programm is not fast enough
+	//FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+	
+	//read_buffer_size = n_samples;
+	a.pcBufRead = (unsigned char *)malloc(a.read_buffer_size);
 
-	printf("READING SAMPLES FROM USB...\n");
-	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+	printf("READING %d SAMPLES FROM USB. CALLING THREAD...\n", n_samples);
+	
+	// old read function without using threads
+	//FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+
+	// Set high thread priority for the FT_Read function and call its thread
+	pthread_attr_init(&tattr);
+	pthread_attr_getschedparam(&tattr, &param);
+	param.sched_priority = -20;
+	pthread_attr_setschedparam(&tattr, &param);
+	pthread_create (&tdi, &tattr, FT_Read_thread, (void *)&a);
+	pthread_join(tdi, NULL);
 
 	// Data sanity check
-	printf ("DATA SANITY CHECK...\n");
-	for (i = 0; i < dwBytesRead-1; i++){
-		if (pcBufRead[i+1] - pcBufRead[i] != 1 && 
+	printf("%d Bytes read\n", a.dwBytesRead);
+	printf("DATA SANITY CHECK...\n");
+	
+	if (a.dwBytesRead < 4){
+		printf("Too few bytes read. Error. Exiting...\n");
+		free(a.pcBufRead);
+		return(1);
+	}
+	
+	for (i = 0; i < a.dwBytesRead-3; i=i+2){
+///*
+		if (256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) - 
+			256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2])!= 1 &&
+			256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) - 
+			256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2])!= 256){
+			errorcount++;
+			printf("Error at %d = %d \n", i,
+			256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) );
+			printf("Error at %d = %d \n", i+2,
+			256*(a.pcBufRead[i+3]) + (a.pcBufRead[i+2]) );
+		}
+//*/
+/*
+	if (pcBufRead[i+1] - pcBufRead[i] != 1 && 
 			pcBufRead[i+1] - pcBufRead[i] != -255){
 			errorcount++;
 			printf("Error at %d : %x - %x =  %d \n", 
 					i, pcBufRead[i+1],  pcBufRead[i], 
 					pcBufRead[i+1] - pcBufRead[i]);
 		}
+*/
 	}
-	printf("Number of bytes red = %d \n", (int)dwBytesRead);
+	printf("Number of bytes red = %d \n", (int)a.dwBytesRead);
 	printf("Nummber of errors = %d \n\n", errorcount);
 
-	for (i = 0; i < 3 ; i++){
-		printf("Byte %d = %x \n",i, pcBufRead[i]);
+	for (i = 0; i < n_samples-1 ; i=i+2){
+/*
+		printf("Byte %d = %x \nByte %d = %x \n", i, pcBufRead[i],
+										i+1, pcBufRead[i+1]);
+*/
+///*
+		printf("Byte %d = %x %x %d %d\n",i, a.pcBufRead[i], a.pcBufRead[i+1],
+				256*a.pcBufRead[i+1] + a.pcBufRead[i],
+				256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) - 
+				256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2]));
+//*/
 	}
+	
 	printf("\n");
-	free(pcBufRead);
+	free(a.pcBufRead);
+	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 
 	return 0;
 }
@@ -383,6 +471,39 @@ int get_reset_count(FT_HANDLE ftHandle)
 	return 0;
 }
 
+int get_device_list_info()
+{
+	int i;
+	FT_STATUS ftStatus;
+	FT_DEVICE_LIST_INFO_NODE *devInfo;
+	DWORD numDevs;
+
+	ftStatus = FT_CreateDeviceInfoList(&numDevs);
+
+	if (ftStatus == FT_OK){
+		printf("Number of devices is %d \n", numDevs);
+	}
+
+	if (numDevs > 0){
+		devInfo = (FT_DEVICE_LIST_INFO_NODE*)
+					malloc(sizeof(FT_DEVICE_LIST_INFO_NODE)*numDevs);
+		ftStatus = FT_GetDeviceInfoList(devInfo, &numDevs);
+		if (ftStatus == FT_OK){
+			for (i = 0; i < numDevs; i++){
+				printf("Dev %d:\n", i);
+				printf("  Flags=0x%x\n", devInfo[i].Flags);
+				printf("  Type=0x%x\n", devInfo[i].Type);
+				printf("  IF=0x%x\n", devInfo[i].ID);
+				printf("  LocId=0x%x\n", devInfo[i].LocId);
+				printf("  SerialNumber=0x%x\n", devInfo[i].SerialNumber);
+				printf("  Description=%s\n", devInfo[i].Description);
+				printf("  ftHandle=0x%x\n", devInfo[i].ftHandle);
+			}
+		}
+	}
+	return 0;
+}
+
 /////////////
 // GLOBALS //
 /////////////
@@ -399,20 +520,38 @@ int main(int argc, char *argv[])
 	int j,i;
 	FT_HANDLE ftHandle;
 	FT_STATUS ftStatus;
+	int status;
 	int write_buffer_size, read_buffer_size;
 	char * pcBufRead;
 	char   cBufWrite[1];
 	
-	// Open FTDI USB device
-	open_device(&ftHandle);
 
+	// Open FTDI USB device
+	status = open_device(&ftHandle);
+	if (status != OK)
+	{
+		printf("Open device failed. Exit.\n\n");
+		exit(ERR);
+	}
+
+	// obsolete? try it without and erase if unnecessary
+	//FT_SetBitMode(ftHandle, 0, 0);
+	
 	// Config device
-	FT_SetBaudRate(ftHandle, 921600);
+	//FT_SetBaudRate(ftHandle, 921600);
+	//FT_SetBaudRate(ftHandle, 270000);
 	FT_SetUSBParameters(ftHandle, 64000, 0);
+
+	// Setting latency to 2 leads to com problems, but
+	// it should be as short as possible...
+	FT_SetLatencyTimer(ftHandle, 64);
 	FT_SetDtr(ftHandle);
 	FT_SetRts(ftHandle);
 	FT_SetFlowControl(ftHandle, FT_FLOW_RTS_CTS, 0, 0);
 	FT_SetTimeouts(ftHandle, 1000, 1000);
+	// When timeouts are set to 0 (unlimited time) there seem to be
+	// some communication probelms. But only for some commands. Dont
+	// know why...
 	//FT_SetTimeouts(ftHandle, 0, 0);
 	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 
@@ -452,8 +591,11 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	else if (argc == 2 && strcmp(argv[1],"start") == 0)
-		start_msrmnt(ftHandle, 40000);
+	else if (argc == 3 && strcmp(argv[1],"start") == 0)
+		start_msrmnt(ftHandle, atoi(argv[2]));
+
+	else if (argc ==2 && strcmp(argv[1],"get_device_list") == 0)
+		get_device_list_info();
 
 	else if (argc == 1){
 		set_pw(ftHandle, 100);
@@ -477,7 +619,10 @@ int main(int argc, char *argv[])
 		printf ("                   set_delay VALUE\n");
 		printf ("                   set_mode (COPOL|CROSSPOL|");
 		printf ("CALIBRATE|RADIOMETER)\n");
-		printf ("                   start \n\n");
+		printf ("                   start N_SAMPLES\n\n");
+		printf ("                   get_case_temp \n");
+		printf ("                   set_case_temp VALUE \n\n");
+		printf ("                   get_device_list \n\n");
 		exit(1);
 	}
 
