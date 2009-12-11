@@ -5,11 +5,11 @@
 ;
 ; Master control and USB communication programm for the pulse 
 ; generation PCB board. The main loop waits for commands from a PC
-; via the FT245R USB iC and controlls the pulse generation uC and
+; via the FT245R USB iC and controlls the pulse generation CPLD and
 ; a DS1621 thermostat
 ; 
 ; -TWI BUS-
-; The pulse generation uC and a DS1621 are controlled via
+; The pulse generation CPLD and a DS1621 are controlled via
 ; hardware TWI
 ;			PINC0 = SCL
 ;			PINC1 = SDA
@@ -51,7 +51,9 @@
 .def t_msb 	   = r22	; Case temperature MSB
 .def t_lsb	   = r23	; Case temperature LSB
 .def twi_stat	   = r24
-
+;.def n_samples1	   = r29
+;.def n_samples2    = r30
+;.def n_samples3    = r31
 
 .equ MAX_USB_READ_TRIES = 100	; Max number of tries to read from usb
 
@@ -96,10 +98,10 @@
 .equ CPLD_ADDRS_W	= 0b00001010	; Address for writing
 .equ CPLD_ADDRS_R	= 0b00001011	; Address for reading
 
-;========================================;
-; Communication commands for CPLD and PC ;
-;========================================;
-.equ ERROR 		= 0x00
+;============================================;
+; Communication commands for CPLD and for PC ;
+;============================================;
+.equ ERROR 		= 0xEE
 
 .equ SET_NUM_SAMPLES 	= 0b00000110
 .equ SET_MODE		= 0b00001000
@@ -118,22 +120,32 @@
 ;#############################################################################
 
 reset:
-  	ldi 	temp, LOW(RAMEND)	; LOW-Byte of upper RAM-Adress
+  	ldi 	temp, LOW(RAMEND)	; Init stack pointer
         out 	SPL, temp
-        ldi 	temp, HIGH(RAMEND)	; HIGH-Byte of upper RAM-Adress
-        out 	SPH, temp 
-	rcall	incr_reset_counter
+        ldi 	temp, HIGH(RAMEND)	
+        out 	SPH, temp
+	
+;	ldi 	temp, (0<<WDE)|(1<<WDP3); Enable watchdog with
+;	sts 	WDTCSR, temp		; reset every 4 seconds
+
+	rcall	incr_reset_counter	; Increment the reset counter
 	rcall	init_thermostat		; Initialize the DS1621 over TWI
+
+
+;for test purpose
+;rjmp write_fast_init
 
 main:
 	wdr				; feed the watchdog
+
 	rcall	read_byte_usb_max_tries	; try to read byte from usb for
 					; MAX_USB_READ_TRIES times
 	brtc    main			; jmp to main if T_FLAG is cleared, 
 					; thas is, no byte was received
-	rcall	check_usb_bits		; check which command was received
-	rjmp	main
- 
+
+	rjmp	check_usb_bits		; otherwise, check which command was received
+;	rjmp	main
+
 
 
 ;====================================;
@@ -151,7 +163,7 @@ check_usb_bits:
 	breq	com_set_pw
 
 	cpi	data, SET_DELAY
-	breq	com_set_delay
+	breq	jmp_set_delay
 
 	cpi	data, SET_MODE
 	breq	jmp_set_mode
@@ -173,9 +185,12 @@ check_usb_bits:
 		
 	ldi	data, ERROR		; If no match was found, send error
 	rcall	write_byte_usb
-	ret				; Return to main
+	rjmp	main			; Return to main
 
 ; helpers if branch out of reach
+jmp_set_delay:
+	rjmp 	com_set_delay
+
 jmp_set_mode:
 	rjmp	com_set_mode
 
@@ -212,7 +227,7 @@ com_set_num_samples:
 
 	mov	data, buffer1 
 	rcall 	write_byte_usb		; write back 1st byte
-	mov	data, buffer2 
+	mov	data, buffer2
 	rcall 	write_byte_usb		; write back 2st byte
 
 	rcall	twi_start		; --- START TWI ---
@@ -239,7 +254,7 @@ com_set_num_samples:
 
 	rcall	twi_stop
 
-	ret
+	rjmp	main
 
 
 ;-------------------------;
@@ -272,7 +287,7 @@ com_set_pw:
 
 	rcall	twi_stop
 
-	ret
+	rjmp	main
 
 ;-------------------;
 ; Set delay in CPLD ;
@@ -313,7 +328,7 @@ com_set_delay:
 
 	rcall	twi_stop
 
-	ret
+	rjmp	main
 
 ;------------------;
 ; Set mode in CPLD ;
@@ -345,7 +360,7 @@ com_set_mode:
 
 	rcall	twi_stop
 
-	ret
+	rjmp	main
 
 ;-------------------;
 ; Start measurement ;
@@ -353,9 +368,18 @@ com_set_mode:
 com_start_msrmnt:
 	rcall	write_byte_usb		; write back received command byte to PC
 
+;foobar:
+;	nop
+;	rjmp foobar
+
 ; not used anymore, but maybe implement some eeprom things
 ;	rcall 	n_samples_from_eeprom	; get n_samples(1,2,3) from eeprom
-;	rcall	write_fast_init		; write data n_sample-times
+
+;
+	rcall	write_fast_init		; write data n_sample-times
+	rjmp	main
+;;;;;;;; debug rjmp:::::::::::::::.
+;
 
 	rcall	twi_init		; Init TWI
 
@@ -373,7 +397,7 @@ com_start_msrmnt:
 
 	rcall	twi_stop
 
-	ret
+	rjmp	main
 
 ;----------------------------------;
 ; Set the desired case temperature ;
@@ -434,7 +458,7 @@ com_set_case_temp:
 
 	rcall	twi_stop
 
-	ret
+	rjmp	main
 
 ;----------------------;
 ; Get case temperature ;
@@ -480,7 +504,7 @@ com_get_case_temp:
 	mov	data, t_msb
 	rcall	write_byte_usb
 
-	ret
+	rjmp	main
 
 ;-------------------;
 ; Set reset counter ;
@@ -493,7 +517,7 @@ com_set_reset_count:
 	ldi	eeprom_buffer,0		; Copy '0' to buffer
 	rcall	write_eeprom		; Write buffer to eeprom
 
-	ret
+	rjmp	main
 
 ;-------------------;
 ; Get reset counter ;
@@ -508,7 +532,7 @@ com_get_reset_count:
 
 	rcall	write_byte_usb		; And transmit it to PC
 
-	ret
+	rjmp	main
 
 ;------------------------------------;
 ; E N D  COMMUNICATION STATE MACHINE ;
@@ -862,24 +886,81 @@ write_fast_init:
 
 	ldi	temp, 0
 
-write_fast:
-	out 	PORTD, temp
-	cbi	PORTC, 7
-	sbi	PORTC, 7
-	inc	temp
-	out 	PORTD, temp
-	cbi	PORTC, 7
-	sbi	PORTC, 7
-	inc	temp
-	nop
-	nop
+;	mov	buffer1, n_samples1
+;	mov	buffer2, n_samples2
 
-	subi 	buffer1, 1		; decrement 24bit loop counter 'n_samples'
+;	rjmp	write_fast_with_wait
+
+write_fast:
+; write witout paying attention to the TXF flag
+	out 	PORTD, buffer1
+	cbi	PORTC, 7		; write
+	sbi	PORTC, 7
+	inc 	temp
+	out 	PORTD, buffer2
+	cbi	PORTC, 7		; write
+	sbi	PORTC, 7
+	inc 	temp
+	
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	subi 	buffer1, 1		; decrement 16bit loop counter
+	sbci 	buffer2, 0		;
+	brcs	exit_write_fast		; exit loop if counter reached zero
+	rjmp	write_fast
+
+
+write_fast_with_wait:
+; loop with 16 bit counter and its output
+	out 	PORTD, buffer1		; first byte of counter to USB-data-port
+wait_fast_1:
+	sbic	PINC, 6
+	rjmp	wait_fast_1 		; wait for TXF cleared
+	
+	cbi	PORTC, 7		; write
+	sbi	PORTC, 7
+
+	out 	PORTD, buffer2		; second byte of counter to USB-data-port
+wait_fast_2:
+	sbic	PINC, 6
+	rjmp	wait_fast_2 		; wait for TXF cleared
+	
+	cbi	PORTC, 7
+	sbi	PORTC, 7
+
+	subi 	buffer1, 1		; decrement 16bit loop counter
 	sbci 	buffer2, 0		;
 
-	breq	exit_write_fast		; exit loop if counter reached zero
+	brcs	exit_write_fast		; exit loop if counter reached zero
 
-	rjmp 	write_fast
+	rjmp 	write_fast_with_wait
 
 exit_write_fast:
 	ret
