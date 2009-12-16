@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>		// for usleep
 #include "ftd2xx.h"
 #include <math.h>
 #include <pthread.h>
@@ -30,8 +31,8 @@
 #define SET_RANGE_INCR	0x05
 
 // CPLD modes
-#define CROSSPOL		0x04
 #define COPOL			0x02
+#define CROSSPOL		0x04
 #define CALIBRATE		0x06
 #define	RADIOMETER		0x08
 
@@ -117,10 +118,11 @@ char read_byte(FT_HANDLE ftHandle)
 	pcBufRead = (char *)malloc(read_buffer_size);
 
 	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+	
 	if (dwBytesRead != 1)
 		printf("No byte read. Timeout\n");
 
-	//printf("Received 0x%x \n", pcBufRead[0]);
+	printf("Received 0x%x \n", pcBufRead[0]);
 
 	value = pcBufRead[0];
 
@@ -130,44 +132,30 @@ char read_byte(FT_HANDLE ftHandle)
 }
 
 // Write a byte via USB and check its transmission
-// by reading back, hopefully the same byte
+// by reading back hopefully the same byte
 int write_byte(FT_HANDLE ftHandle, char byte)
 {
-	char byteRead;
+	char byteRead = 0;
 	char pcBufRead[1];
 	char cBufWrite[1];
 	int write_buffer_size = 1;
 	int read_buffer_size = 1;
 	DWORD dwBytesRead, dwBytesWritten;
 
-	// not needed of only one byte is read
-	//pcBufRead = (char *)malloc(read_buffer_size);
-		
-	// Purge the buffers because sometimes the uC leaves something
-	// especially in the TX buffer
-	//
-	// has no effect!?
-	//FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-	
 	// Send byte
 	cBufWrite[0] = byte;
 	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
+	printf("Sent 0x%x \n", cBufWrite[0]);
 	
 	// Check what the uC returns, it should be the same byte
+	usleep(100000);
 	byteRead = read_byte(ftHandle);
-	//FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
-	
+
 	if (byteRead != cBufWrite[0])
 	{
 		printf("USB transmission problem.\n");
-		printf("Sent: %x Received: %x \n", cBufWrite[0], byteRead);
-		// Purge buffers
-		FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 		return 1;
 	}
-	
-	//free(pcBufRead);
-
 	return 0;
 }
 
@@ -176,57 +164,44 @@ int write_byte(FT_HANDLE ftHandle, char byte)
 int write_bytes(FT_HANDLE ftHandle, char *bytes, int size)
 {
 	int i;
+	int status = OK;
 	char * pcBufRead;
 	char   cBufWrite[size];
 	int write_buffer_size = size;
 	int read_buffer_size = size;
 	DWORD dwBytesRead, dwBytesWritten;
-
+	
 	pcBufRead = (char *)malloc(read_buffer_size);
 
 	// Truncate the bytes array to the desired size
-	//printf("Written  ");
 	for(i = 0; i < size; i++){
 		cBufWrite[i] = bytes[i];
-	//	printf("%x ", cBufWrite[i]);
 	}
-	//printf("\n");
+	printf("\n");
 
 	// Send bytes
 	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
-	
+
 	// Check what the uC returns, it should be the same byte
 	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
-	//printf("Received ");
 	for(i = 0; i < size; i++){
-	//	printf("%x ", pcBufRead[i]);
-		printf("Sent: %x Received: %x \n", cBufWrite[i], pcBufRead[i]);
+	printf("Sent: %x Received: %x \n", cBufWrite[i], pcBufRead[i]);
 		if (pcBufRead[i] != cBufWrite[i])
 		{
 			printf("USB transmission problem.\n");
-			printf("Sent: %x Received: %x \n", cBufWrite[i], pcBufRead[i]);
 			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
-			free(pcBufRead);
-			return 1;
+			status = ERR;
 		}
 	}
-	//printf("\n");
-	
 	free(pcBufRead);
 
-	return 0;
-}
-
-void *FT_Read_threaded(FT_HANDLE ftHandle, LPVOID pcBufRead, 
-					   DWORD read_buffer_size, LPDWORD dwBytesRead)
-{
-	FT_Read(ftHandle, pcBufRead, read_buffer_size, dwBytesRead);
+	return status;
 }
 
 // Set the number of samples for the measurement
 int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 {
-	char num[4]; 		// hods the 4 bytes of  n_samples
+	char num[4]; 		// holds the 4 bytes of  n_samples
 	
 	// The max number of samples allowed is 2^16 (2 byte)
 	if(n_samples < 0 || n_samples >= pow(2,16)){
@@ -247,6 +222,7 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 	return 0;
 }
 
+// Set delay for range gating
 int set_delay(FT_HANDLE ftHandle, int delay)
 {
 	char num[4]; 		// holds the 4 bytes of delay
@@ -272,6 +248,7 @@ int set_delay(FT_HANDLE ftHandle, int delay)
 	return 0;
 }
 
+// Set pulse width of transmitted pulse
 int set_pw(FT_HANDLE ftHandle, int pw_int)
 {
 	// The max number of samples allowed is 2^8 (1 byte)
@@ -287,6 +264,7 @@ int set_pw(FT_HANDLE ftHandle, int pw_int)
 }
 
 
+// Set measurement mode (CROSSPOL | COPPOL | CALIBRATE | RADIOMETER)
 int set_mode(FT_HANDLE ftHandle,int int_mode)
 {
 	printf("Set mode to %d\n", int_mode);
@@ -297,6 +275,7 @@ int set_mode(FT_HANDLE ftHandle,int int_mode)
 }
 
 // Structure for passing args to threaded FT_Read
+//!! add a return status
 struct thread_args{
 	FT_HANDLE ftHandle;
 	unsigned char * pcBufRead;
@@ -304,6 +283,16 @@ struct thread_args{
 	DWORD dwBytesRead;
 };
 
+// obsolete??
+/*void *FT_Read_threaded(FT_HANDLE ftHandle, LPVOID pcBufRead, 
+					   DWORD read_buffer_size, LPDWORD dwBytesRead)
+{
+	FT_Read(ftHandle, pcBufRead, read_buffer_size, dwBytesRead);
+}
+*/
+
+// Function pointer for the threaded call of FT_Read.
+// Threading with high priority should improve usb read continuity
 void *FT_Read_thread(void *args)
 {
 	FT_STATUS status;
@@ -344,13 +333,14 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_samples)
 	printf("READING %d SAMPLES FROM USB. CALLING THREAD...\n", n_samples);
 	
 	// old read function without using threads
-	//FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+	//FT_Read(ftHandle, a.pcBufRead, a.read_buffer_size, &a.dwBytesRead);
 
 	// Set high thread priority for the FT_Read function and call its thread
 	pthread_attr_init(&tattr);
 	pthread_attr_getschedparam(&tattr, &param);
 	param.sched_priority = -20;
 	pthread_attr_setschedparam(&tattr, &param);
+	// Start read thread an wait for its termination
 	pthread_create (&tdi, &tattr, FT_Read_thread, (void *)&a);
 	pthread_join(tdi, NULL);
 
@@ -363,13 +353,16 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_samples)
 		free(a.pcBufRead);
 		return(1);
 	}
-	
+
+	// Following are two error checking routine. One for a 8bit and
+	// the other for a 16bit counter transmitted by the uC.
+	// Either the 8bit or the 16bit parts have to be commented out
 	for (i = 0; i < a.dwBytesRead-3; i=i+2){
 ///*
 		if (256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) - 
 			256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2])!= 1 &&
 			256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) - 
-			256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2])!= 256){
+			256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2])!= -65535){
 			errorcount++;
 			printf("Error at %d = %d \n", i,
 			256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) );
@@ -396,7 +389,7 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_samples)
 										i+1, pcBufRead[i+1]);
 */
 ///*
-		printf("Byte %d = %x %x %d %d\n",i, a.pcBufRead[i], a.pcBufRead[i+1],
+		printf("Byte %d = %x %x %d %d\n",i, a.pcBufRead[i+1], a.pcBufRead[i],
 				256*a.pcBufRead[i+1] + a.pcBufRead[i],
 				256*(a.pcBufRead[i+1]) + (a.pcBufRead[i]) - 
 				256*(a.pcBufRead[i+3]) - (a.pcBufRead[i+2]));
@@ -412,7 +405,7 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_samples)
 
 int set_case_temp(FT_HANDLE ftHandle,int t)
 {
-	if (t < 10 && t > 50)
+	if (t < 10 || t > 50)
 	{
 		printf("Desired temperature not in range\n\n");
 		return 1;
@@ -420,9 +413,10 @@ int set_case_temp(FT_HANDLE ftHandle,int t)
 	printf("Set case temperature to %d\n", t);
 	char temp = (char)t;
 	write_byte(ftHandle, SET_CASE_TEMP);
+	
+	// Only write one byte, the 16 bit +- 0.5 resolution is not neccesary
 	write_byte(ftHandle, temp);
-	// Only write one byte, the +- 0.5 resolution is not neccesary
-	//write_byte(ftHandle, 0);
+	
 	return 0;
 }
 
@@ -439,7 +433,7 @@ int get_case_temp(FT_HANDLE ftHandle)
 	t_lsb = (int)read_byte(ftHandle);
 	t_msb = (int)read_byte(ftHandle);
 
-	// CHANGE THIS!!!!!
+	//!! CHANGE THIS!!!!!
 	// MSB has range of -55 to 125 --> see DS1621 datasheet
 	// This only works for temperature > 0
 	case_temp = t_msb - 0.5 * t_lsb/128;
@@ -452,7 +446,7 @@ int get_case_temp(FT_HANDLE ftHandle)
 int set_reset_count(FT_HANDLE ftHandle)
 {
 
-	printf("Set reset count back to 1\n");
+	printf("Set reset count back to 0\n");
 	write_byte(ftHandle, SET_RESET_COUNT);
 
 	return 0;
@@ -509,9 +503,9 @@ int get_device_list_info()
 /////////////
 int errorcount = 0;
 
-//////////
-// MAIN //
-//////////
+/////////////
+// M A I N //
+/////////////
 int main(int argc, char *argv[])
 {
 	printf("\n");
@@ -521,10 +515,6 @@ int main(int argc, char *argv[])
 	FT_HANDLE ftHandle;
 	FT_STATUS ftStatus;
 	int status;
-	int write_buffer_size, read_buffer_size;
-	char * pcBufRead;
-	char   cBufWrite[1];
-	
 
 	// Open FTDI USB device
 	status = open_device(&ftHandle);
@@ -538,23 +528,20 @@ int main(int argc, char *argv[])
 	//FT_SetBitMode(ftHandle, 0, 0);
 	
 	// Config device
-	//FT_SetBaudRate(ftHandle, 921600);
-	//FT_SetBaudRate(ftHandle, 270000);
 	FT_SetUSBParameters(ftHandle, 64000, 0);
 
 	// Setting latency to 2 leads to com problems, but
 	// it should be as short as possible...
-	FT_SetLatencyTimer(ftHandle, 64);
+	FT_SetLatencyTimer(ftHandle, 0);
 	FT_SetDtr(ftHandle);
 	FT_SetRts(ftHandle);
 	FT_SetFlowControl(ftHandle, FT_FLOW_RTS_CTS, 0, 0);
 	FT_SetTimeouts(ftHandle, 1000, 1000);
-	// When timeouts are set to 0 (unlimited time) there seem to be
-	// some communication probelms. But only for some commands. Dont
-	// know why...
-	//FT_SetTimeouts(ftHandle, 0, 0);
+	
 	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 
+	//sleep(1);
+	
 	if (argc == 3 && strcmp(argv[1],"set_case_temp") == 0)
 		set_case_temp(ftHandle,atoi(argv[2]));
 	
@@ -618,12 +605,20 @@ int main(int argc, char *argv[])
 		printf ("                   set_n_samples VALUE\n");
 		printf ("                   set_delay VALUE\n");
 		printf ("                   set_mode (COPOL|CROSSPOL|");
-		printf ("CALIBRATE|RADIOMETER)\n");
+		printf (				   		     "CALIBRATE|RADIOMETER)\n");
 		printf ("                   start N_SAMPLES\n\n");
 		printf ("                   get_case_temp \n");
 		printf ("                   set_case_temp VALUE \n\n");
 		printf ("                   get_device_list \n\n");
 		exit(1);
+	}
+
+	else if (argc == 2 && strcmp(argv[1],"read") == 0){
+		read_byte(ftHandle);
+	}
+
+	else if (argc == 3 && strcmp(argv[1],"write") == 0){
+		write_byte(ftHandle,(char)atoi(argv[2]));
 	}
 
 	else{
