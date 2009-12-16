@@ -124,7 +124,18 @@ reset:
         out 	SPL, temp
         ldi 	temp, HIGH(RAMEND)	
         out 	SPH, temp
-	
+					; USB control flags
+	cbi 	DDRC, 4			; PORTC 4 = RXF = input
+	sbi	PORTC, 4		; pull-up active
+	cbi	DDRC, 6			; PORTC 6 = TXE = input
+	sbi	PORTC, 6		; pull-up active
+
+					; USB control pins
+	sbi 	DDRC, 5			; PORTC 5 = RD = output
+	sbi	PORTC, 5		; set it high
+	sbi 	DDRC, 7			; PORTC 7 = WR = output
+	cbi	PORTC, 7		; set it low
+
 ;	ldi 	temp, (0<<WDE)|(1<<WDP3); Enable watchdog with
 ;	sts 	WDTCSR, temp		; reset every 4 seconds
 
@@ -132,8 +143,9 @@ reset:
 	rcall	init_thermostat		; Initialize the DS1621 over TWI
 
 
-;for test purpose
-;rjmp write_fast_init
+	rjmp main
+
+
 
 main:
 	wdr				; feed the watchdog
@@ -367,10 +379,6 @@ com_set_mode:
 ;-------------------;
 com_start_msrmnt:
 	rcall	write_byte_usb		; write back received command byte to PC
-
-;foobar:
-;	nop
-;	rjmp foobar
 
 ; not used anymore, but maybe implement some eeprom things
 ;	rcall 	n_samples_from_eeprom	; get n_samples(1,2,3) from eeprom
@@ -766,17 +774,15 @@ read_byte_usb:
 	ldi	temp, 0xFF
 	out	PORTD, temp		; pull-ups active
 
-	cbi 	DDRC, 4			; PORTC 4 input
-	sbi	PORTC, 4		; pull-up active
-	cbi	DDRC, 6			; PORTC 6 input
-	sbi	PORTC, 6		; pull-up active
-
-	sbi 	DDRC, 5			; PORTC 5 output
-	sbi	PORTC, 5		; set it high
-	sbi 	DDRC, 7			; PORTC 7 output
-	sbi	PORTC, 7		; set it high
-
-	clr	counter			; clear the counter for the wait loop
+;	cbi 	DDRC, 4			; PORTC 4 input
+;	sbi	PORTC, 4		; pull-up active
+;	cbi	DDRC, 6			; PORTC 6 input
+;	sbi	PORTC, 6		; pull-up active
+;
+;	sbi 	DDRC, 5			; PORTC 5 output
+;	sbi	PORTC, 5		; set it high
+;	sbi 	DDRC, 7			; PORTC 7 output
+;	cbi	PORTC, 7		; set it low
 
 wait_for_RXF:
 	sbis	PINC, 4 		; exit wait loop if RXF (read ready) is low
@@ -802,15 +808,15 @@ read_byte_usb_max_tries:
 	ldi	temp, 0xFF
 	out	PORTD, temp		; pull-ups active
 
-	cbi 	DDRC, 4			; PORTC 4 input
-	sbi	PORTC, 4		; pull-up active
-	cbi	DDRC, 6			; PORTC 6 input
-	sbi	PORTC, 6		; pull-up active
-
-	sbi 	DDRC, 5			; PORTC 5 output
-	sbi	PORTC, 5		; set it high
-	sbi 	DDRC, 7			; PORTC 7 output
-	sbi	PORTC, 7		; set it high
+;	cbi 	DDRC, 4			; PORTC 4 input
+;	sbi	PORTC, 4		; pull-up active
+;	cbi	DDRC, 6			; PORTC 6 input
+;	sbi	PORTC, 6		; pull-up active
+;
+;	sbi 	DDRC, 5			; PORTC 5 output
+;	sbi	PORTC, 5		; set it high
+;	sbi 	DDRC, 7			; PORTC 7 output
+;	sbi	PORTC, 7		; set it high
 
 	clr	counter			; clear the counter for the wait loop
 
@@ -843,15 +849,15 @@ write_byte_usb:
 	ldi 	temp, 0xFF	
 	out 	DDRD, temp		; PORTD is output
 
-	cbi 	DDRC, 4			; PORTC 4 input
-	sbi	PORTC, 4		; pull-up active
-	cbi	DDRC, 6			; PORTC 6 input
-	sbi	PORTC, 6		; pull-up active
-
-	sbi 	DDRC, 5			; PORTC 5 output
-	sbi	PORTC, 5		; set it high
-	sbi 	DDRC, 7			; PORTC 7 output
-	sbi	PORTC, 7		; set it high
+;	cbi 	DDRC, 4			; PORTC 4 input
+;	sbi	PORTC, 4		; pull-up active
+;	cbi	DDRC, 6			; PORTC 6 input
+;	sbi	PORTC, 6		; pull-up active
+;
+;	sbi 	DDRC, 5			; PORTC 5 output
+;	sbi	PORTC, 5		; set it high
+;	sbi 	DDRC, 7			; PORTC 7 output
+;	sbi	PORTC, 7		; set it high
 	
 wait_for_TXF:
 	sbis	PINC, 6
@@ -874,17 +880,21 @@ write_fast_init:
 	ldi 	temp, 0xFF	
 	out 	DDRD, temp		; PORTD is output
 
-	cbi 	DDRC, 4			; PORTC 4 input
-	sbi	PORTC, 4		; pull-up active
-	cbi	DDRC, 6			; PORTC 6 input
-	sbi	PORTC, 6		; pull-up active
-
-	sbi 	DDRC, 5			; PORTC 5 output
-	sbi	PORTC, 5		; set it high
-	sbi 	DDRC, 7			; PORTC 7 output
-	sbi	PORTC, 7		; set it high
+;	cbi 	DDRC, 4			; PORTC 4 input
+;	sbi	PORTC, 4		; pull-up active
+;	cbi	DDRC, 6			; PORTC 6 input
+;	sbi	PORTC, 6		; pull-up active
+;
+;	sbi 	DDRC, 5			; PORTC 5 output
+;	sbi	PORTC, 5		; set it high
+;	sbi 	DDRC, 7			; PORTC 7 output
+;	sbi	PORTC, 7		; set it high
 
 	ldi	temp, 0
+
+	ldi	buffer1, 0xff
+	ldi	buffer2, 0xff
+
 
 ;	mov	buffer1, n_samples1
 ;	mov	buffer2, n_samples2
@@ -900,16 +910,8 @@ write_fast:
 	out 	PORTD, buffer2
 	cbi	PORTC, 7		; write
 	sbi	PORTC, 7
-	inc 	temp
+;	inc 	temp
 	
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
 	nop
 	nop
 	nop
@@ -944,7 +946,7 @@ wait_fast_1:
 	sbic	PINC, 6
 	rjmp	wait_fast_1 		; wait for TXF cleared
 	
-	cbi	PORTC, 7		; write
+	cbi	PORTC, 7		; write to USB
 	sbi	PORTC, 7
 
 	out 	PORTD, buffer2		; second byte of counter to USB-data-port
@@ -952,7 +954,7 @@ wait_fast_2:
 	sbic	PINC, 6
 	rjmp	wait_fast_2 		; wait for TXF cleared
 	
-	cbi	PORTC, 7
+	cbi	PORTC, 7		; write to USB
 	sbi	PORTC, 7
 
 	subi 	buffer1, 1		; decrement 16bit loop counter
