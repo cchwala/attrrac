@@ -1,0 +1,139 @@
+<ASSEMBLER_INFO>
+ <VERSION>2.1.42</VERSION>
+ <DEVICE>ATmega64</DEVICE>
+ <WORKING_DIR>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm</WORKING_DIR>
+ <INCLUDE_PATH>
+  <DIR>C:\Programme\Atmel\AVR Tools\AvrAssembler2\Appnotes</DIR>
+ </INCLUDE_PATH>
+ <SOURCE_FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</SOURCE_FILE>
+ <INCLUDED_FILES>
+  <FILE>C:\Programme\Atmel\AVR Tools\AvrAssembler2\Appnotes\m64def.inc</FILE>
+ </INCLUDED_FILES>
+ <OBJECT_FILES>
+  <FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\asm_com.obj</FILE>
+ </OBJECT_FILES>
+ <HEX_FILES>
+  <FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\asm_com.hex</FILE>
+  <FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\asm_com.eep</FILE>
+ </HEX_FILES>
+ <OUTPUT_FILES>
+  <FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\asm_com.map</FILE>
+ </OUTPUT_FILES>
+ <LABELS>
+  <reset><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>148</LINE></reset>
+  <timer1_compare><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>693</LINE></timer1_compare>
+  <wdt_on><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1974</LINE></wdt_on>
+  <incr_reset_counter><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1961</LINE></incr_reset_counter>
+  <init_thermostat><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>2006</LINE></init_thermostat>
+  <init_board_thermostat><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>2048</LINE></init_board_thermostat>
+  <main><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>218</LINE></main>
+  <read_byte_usb_max_tries><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1805</LINE></read_byte_usb_max_tries>
+  <check_usb_bits><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>236</LINE></check_usb_bits>
+  <jmp_set_num_samples><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>311</LINE></jmp_set_num_samples>
+  <jmp_set_pw><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>314</LINE></jmp_set_pw>
+  <jmp_set_delay><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>317</LINE></jmp_set_delay>
+  <jmp_set_mode><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>320</LINE></jmp_set_mode>
+  <jmp_start_msrmnt><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>323</LINE></jmp_start_msrmnt>
+  <jmp_start_slow_loop><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>326</LINE></jmp_start_slow_loop>
+  <jmp_set_case_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>329</LINE></jmp_set_case_temp>
+  <jmp_get_case_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>332</LINE></jmp_get_case_temp>
+  <jmp_set_board_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>335</LINE></jmp_set_board_temp>
+  <jmp_get_board_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>338</LINE></jmp_get_board_temp>
+  <jmp_set_reset_count><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>341</LINE></jmp_set_reset_count>
+  <jmp_get_reset_count><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>344</LINE></jmp_get_reset_count>
+  <jmp_set_adc><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>347</LINE></jmp_set_adc>
+  <jmp_get_status><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>350</LINE></jmp_get_status>
+  <jmp_set_pol_precede><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>353</LINE></jmp_set_pol_precede>
+  <jmp_set_atten22><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>356</LINE></jmp_set_atten22>
+  <jmp_set_atten35><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>359</LINE></jmp_set_atten35>
+  <jmp_get_lock><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>362</LINE></jmp_get_lock>
+  <jmp_get_adc4><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>365</LINE></jmp_get_adc4>
+  <jmp_get_adc5><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>368</LINE></jmp_get_adc5>
+  <jmp_get_adc6><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>371</LINE></jmp_get_adc6>
+  <jmp_get_adc7><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>374</LINE></jmp_get_adc7>
+  <jmp_foo_cmd><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>377</LINE></jmp_foo_cmd>
+  <write_byte_usb><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1838</LINE></write_byte_usb>
+  <com_set_num_samples><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>383</LINE></com_set_num_samples>
+  <com_set_pw><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>445</LINE></com_set_pw>
+  <com_set_delay><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>485</LINE></com_set_delay>
+  <com_set_mode><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>536</LINE></com_set_mode>
+  <com_start_msrmnt><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>576</LINE></com_start_msrmnt>
+  <com_start_slow_loop><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>697</LINE></com_start_slow_loop>
+  <com_set_case_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>948</LINE></com_set_case_temp>
+  <com_get_case_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1013</LINE></com_get_case_temp>
+  <com_set_board_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1059</LINE></com_set_board_temp>
+  <com_get_board_temp><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1124</LINE></com_get_board_temp>
+  <com_set_reset_count><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1170</LINE></com_set_reset_count>
+  <com_get_reset_count><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1183</LINE></com_get_reset_count>
+  <com_set_adc><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1198</LINE></com_set_adc>
+  <com_get_status><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1238</LINE></com_get_status>
+  <com_set_pol_precede><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1282</LINE></com_set_pol_precede>
+  <com_set_atten22><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1324</LINE></com_set_atten22>
+  <com_set_atten35><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1375</LINE></com_set_atten35>
+  <com_get_lock><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1426</LINE></com_get_lock>
+  <com_get_adc4><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1443</LINE></com_get_adc4>
+  <com_get_adc5><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1466</LINE></com_get_adc5>
+  <com_get_adc6><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1489</LINE></com_get_adc6>
+  <com_get_adc7><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1512</LINE></com_get_adc7>
+  <com_foo_cmd><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1537</LINE></com_foo_cmd>
+  <read_byte_usb><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1781</LINE></read_byte_usb>
+  <cpld_is_busy><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1553</LINE></cpld_is_busy>
+  <twi_init><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1567</LINE></twi_init>
+  <twi_start><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1582</LINE></twi_start>
+  <twi_write><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1621</LINE></twi_write>
+  <twi_stop><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1607</LINE></twi_stop>
+  <twi_check><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1638</LINE></twi_check>
+  <init_ADC_channels><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>579</LINE></init_ADC_channels>
+  <init_read_ADC><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>591</LINE></init_read_ADC>
+  <start_CPLD_pulser><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>604</LINE></start_CPLD_pulser>
+  <wait_for_EOLC_high><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>627</LINE></wait_for_EOLC_high>
+  <wait_for_EOLC_low><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>632</LINE></wait_for_EOLC_low>
+  <read_4_channels><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>638</LINE></read_4_channels>
+  <write_byte_usb_no_wait><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1858</LINE></write_byte_usb_no_wait>
+  <wait_for_timer1_compare><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>730</LINE></wait_for_timer1_compare>
+  <burst_read_loop_init><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>740</LINE></burst_read_loop_init>
+  <exit_slow_loop><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>937</LINE></exit_slow_loop>
+  <twi_read_ack><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1651</LINE></twi_read_ack>
+  <twi_read><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1669</LINE></twi_read>
+  <burst_loop_wait_adc4><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>824</LINE></burst_loop_wait_adc4>
+  <burst_loop_wait_adc5><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>838</LINE></burst_loop_wait_adc5>
+  <reset_counter><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>2102</LINE></reset_counter>
+  <read_eeprom><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1761</LINE></read_eeprom>
+  <burst_read_loop><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>870</LINE></burst_read_loop>
+  <burst_wait_for_EOLC_high><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>872</LINE></burst_wait_for_EOLC_high>
+  <burst_wait_for_EOLC_low><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>878</LINE></burst_wait_for_EOLC_low>
+  <burst_read_4_channels><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>884</LINE></burst_read_4_channels>
+  <exit_burst_read_loop><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>932</LINE></exit_burst_read_loop>
+  <write_eeprom><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1726</LINE></write_eeprom>
+  <wait_adc4><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1451</LINE></wait_adc4>
+  <wait_adc5><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1474</LINE></wait_adc5>
+  <wait_adc6><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1497</LINE></wait_adc6>
+  <wait_adc7><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1520</LINE></wait_adc7>
+  <wait1><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1586</LINE></wait1>
+  <exit_twi_start><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1599</LINE></exit_twi_start>
+  <twi_error><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1687</LINE></twi_error>
+  <wait3><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1626</LINE></wait3>
+  <wait4><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1655</LINE></wait4>
+  <wait5><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1673</LINE></wait5>
+  <n_samples_to_eeprom><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1708</LINE></n_samples_to_eeprom>
+  <n1><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>2095</LINE></n1>
+  <n2><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>2097</LINE></n2>
+  <n_samples_from_eeprom><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1743</LINE></n_samples_from_eeprom>
+  <wait_for_RXF><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1787</LINE></wait_for_RXF>
+  <read_byte><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1792</LINE></read_byte>
+  <wait_for_RXF_max_tries><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1813</LINE></wait_for_RXF_max_tries>
+  <read_byte_max_tries><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1821</LINE></read_byte_max_tries>
+  <no_byte_read><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1829</LINE></no_byte_read>
+  <wait_for_TXF><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1842</LINE></wait_for_TXF>
+  <write_byte_usb_bits><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1847</LINE></write_byte_usb_bits>
+  <write_byte_usb_bits_no_wait><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1862</LINE></write_byte_usb_bits_no_wait>
+  <write_fast_init><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1874</LINE></write_fast_init>
+  <write_fast><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1890</LINE></write_fast>
+  <exit_write_fast><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1954</LINE></exit_write_fast>
+  <write_fast_with_wait><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1929</LINE></write_fast_with_wait>
+  <wait_fast_1><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1932</LINE></wait_fast_1>
+  <wait_fast_2><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1940</LINE></wait_fast_2>
+  <wdt_off><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>1990</LINE></wdt_off>
+  <n3><FILE>C:\Dokumente und Einstellungen\chwala-c\Eigene Dateien\code\attrrac\asm\com_mega64.asm</FILE><LINE>2099</LINE></n3>
+ </LABELS>
+</ASSEMBLER_INFO>
