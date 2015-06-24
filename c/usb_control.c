@@ -32,19 +32,22 @@ int open_device(FT_HANDLE *handle)
 	//ftStatus = FT_OpenEx("0x804c710", FT_OPEN_BY_SERIAL_NUMBER, handle);
 	
 	if(ftStatus != FT_OK) {
-		printf("FT_Open failed once\n");
+		syslog(LOG_NOTICE, "FT_Open failed once\n");
 		// Reconnect the device
-		ftStatus = FT_CyclePort(*handle);
+		// !!
+		// !! CyclePort not supported in Linux
+		// !!
+		//ftStatus = FT_CyclePort(*handle);
 		if(ftStatus != FT_OK) {
-			printf("FT_Cycle port failed \n");
+			syslog(LOG_NOTICE, "FT_Cycle port failed \n");
 			}
 	 	//ftStatus = FT_OpenEx(USB_SERIAL_NUM,FT_OPEN_BY_SERIAL_NUMBER,handle);
 		ftStatus = FT_Open(0, handle);
 		if(ftStatus != FT_OK) {
-			printf("FT_Open failed twice\n");
+			syslog(LOG_NOTICE, "FT_Open failed twice\n");
 			return USB_ERR;
 			}
-		printf("Reconnected.\n");
+		syslog(LOG_NOTICE, "Reconnected.\n");
 	}
 	return OK;
 }
@@ -62,16 +65,16 @@ int read_byte(FT_HANDLE ftHandle, char* value)
 
 	ftStatus = FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
 	if(ftStatus != FT_OK){
-			printf("FT_Read failed \n");
+			syslog(LOG_NOTICE, "FT_Read failed \n");
 			return USB_ERR;		
 	}
 	
 	if (dwBytesRead != 1){
-		printf("No byte read. Timeout\n");
+		syslog(LOG_NOTICE, "No byte read. Timeout\n");
 		return USB_ERR;
 	}
 
-	//printf("Received 0x%x \n", pcBufRead[0]);
+	//syslog(LOG_NOTICE, "Received 0x%x \n", pcBufRead[0]);
 
 	*value = pcBufRead[0];
 
@@ -93,14 +96,14 @@ int write_byte(FT_HANDLE ftHandle, char byte)
 	// Send byte
 	cBufWrite[0] = byte;
 	FT_Write(ftHandle, cBufWrite, write_buffer_size, &dwBytesWritten);
-	//printf("Sent 0x%x \n", cBufWrite[0]);
+	//syslog(LOG_NOTICE, "Sent 0x%x \n", cBufWrite[0]);
 	
 	// Check what the uC returns, it should be the same byte
 	status = read_byte(ftHandle, &byteRead);
 
 	if (byteRead != cBufWrite[0])
 	{
-		printf("USB transmission problem. Sent: %x Read: %x\n",cBufWrite[0],byteRead);
+		syslog(LOG_NOTICE, "USB transmission problem. Sent: %x Read: %x\n",cBufWrite[0],byteRead);
 		return USB_ERR;
 	}
 	return OK;
@@ -131,10 +134,10 @@ int write_bytes(FT_HANDLE ftHandle, char *bytes, int size)
 	// Check what the uC returns, it should be the same byte
 	FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
 	for(i = 0; i < size; i++){
-	//printf("Sent: %x Received: %x \n", cBufWrite[i], pcBufRead[i]);
+	//syslog(LOG_NOTICE, "Sent: %x Received: %x \n", cBufWrite[i], pcBufRead[i]);
 		if (pcBufRead[i] != cBufWrite[i])
 		{
-			printf("USB transmission problem.\n");
+			syslog(LOG_NOTICE, "USB transmission problem.\n");
 			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 			status = USB_ERR;
 		}
@@ -160,10 +163,10 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 	// but 4e6 is enough. N has to be even because we want N/2 samples for
 	// each polarization
 	if(n_samples < 0 || n_samples > 4000000 || (n_samples%2 != 0)){
-		printf("Unappropriate number of samples. N must be even. Exit!\n");
+		syslog(LOG_NOTICE, "Unappropriate number of samples. N must be even. Exit!\n");
 		return ARG_ERR;
 	}
-	printf("Set number of samples to %d\n", n_samples);
+	syslog(LOG_NOTICE, "Set number of samples to %d\n", n_samples);
 
 	// Convert n_samples to its bytes num[0] num[1] num[2]
 	int_to_bytes(n_samples,num);
@@ -186,6 +189,13 @@ int set_num_samples(FT_HANDLE ftHandle, int n_samples)
 	status = read_byte(ftHandle, &uC_status);
 	if (status != OK)  			return status;
 	if (uC_status != DONE)		return uC_ERR;
+	
+	// Set USB timeouts so that they fit to n_samples
+	int sampl_freq = 25000; // in Hz
+	int tout = ceil(1000*n_samples/sampl_freq)+500; // in miliseconds
+	if (tout < 3000) tout = 3000;
+	FT_SetTimeouts(ftHandle, tout, tout);
+	syslog(LOG_NOTICE, "Set timeout to %d\n", tout);
 
 	return OK;
 }
@@ -199,10 +209,10 @@ int set_delay(FT_HANDLE ftHandle, int delay)
 	
 	// The max value of the delay is 500 clock cycles (20ns*500 = 3km)
 	if(delay < 0 || delay > 500){
-		printf("Unappropriate value for delay. Exit!\n");
+		syslog(LOG_NOTICE, "Unappropriate value for delay. Exit!\n");
 		return ARG_ERR;
 	}
-	//printf("Set delay to %d\n", delay);
+	syslog(LOG_NOTICE, "Set delay to %d\n", delay);
 
 	// Convert delay to its bytes num[0] num[1]
 	int_to_bytes(delay,num);
@@ -237,10 +247,10 @@ int set_pw(FT_HANDLE ftHandle, int int_pw)
 	
 	// The max number for pulse width is 2^8 (1 byte)
 	if(int_pw < 0 || int_pw >= pow(2,8)){
-		printf("Unappropriate value fow pulse width. Exit!\n");
+		syslog(LOG_NOTICE, "Unappropriate value fow pulse width. Exit!\n");
 		return ARG_ERR;
 	}
-	printf("Set pw to %d\n", int_pw);
+	syslog(LOG_NOTICE, "Set pw to %d\n", int_pw);
 	
 	
 	// Send command to change pulse width
@@ -273,11 +283,11 @@ int set_mode(FT_HANDLE ftHandle,int int_mode)
 	unsigned char uC_status;	// status returned by uC
 	int status;					// usb_function return status
 	
-	printf("Set mode to %d\n", int_mode);
+	syslog(LOG_NOTICE, "Set mode to %d\n", int_mode);
 	
 	if (mode != CROSSPOL && mode != COPOL && mode != CALIBRATE 
 	 && mode != RADIOMETER){
-		printf("wrong mode value\n");
+		syslog(LOG_NOTICE, "wrong mode value\n");
 		return ARG_ERR;
 	}
 	
@@ -312,10 +322,10 @@ int set_adc(FT_HANDLE ftHandle, int int_adc)
 	
 	// The max number for ADC delay is 2^8 (1 byte)
 	if(int_adc < 0 || int_adc >= pow(2,8)){
-		printf("Unappropriate value for ADC delay. Exit!\n");
+		syslog(LOG_NOTICE, "Unappropriate value for ADC delay. Exit!\n");
 		return ARG_ERR;
 	}
-	printf("Set ADC delay to %d\n", int_adc);
+	syslog(LOG_NOTICE, "Set ADC delay to %d\n", int_adc);
 	
 	// Send command to change pulse width
 	status = write_byte(ftHandle, SET_ADC);
@@ -350,10 +360,10 @@ int set_pol_precede(FT_HANDLE ftHandle, int int_precede)
 	
 	// The max value for pol_precede is 2^8 (1 byte)
 	if(int_precede < 0 || int_precede >= pow(2,8)){
-		printf("Unappropriate value for pol_precede. Exit!\n");
+		syslog(LOG_NOTICE, "Unappropriate value for pol_precede. Exit!\n");
 		return ARG_ERR;
 	}
-	printf("Set pol_precede to %d\n", precede);
+	syslog(LOG_NOTICE, "Set pol_precede to %d\n", precede);
 
 	// OBSOLETE
 	// Convert pol_precede to its bytes num[0] num[1]
@@ -387,7 +397,7 @@ int get_status(FT_HANDLE ftHandle)
 	char cpld_status;
 	int status = OK;
 	
-	printf("Get CPLD status\n");
+	syslog(LOG_NOTICE, "Get CPLD status\n");
 
 	// write command
 	status = write_byte(ftHandle, GET_STATUS);
@@ -398,7 +408,7 @@ int get_status(FT_HANDLE ftHandle)
 	if (status != OK)  			return status;
 	
 	syslog(LOG_NOTICE, "CPLD status = %.d \n", cpld_status);
-	printf("CPLD status = %.d \n", cpld_status);
+	syslog(LOG_NOTICE, "CPLD status = %.d \n", cpld_status);
 	
 	return OK;
 }
@@ -417,7 +427,7 @@ int set_atten22(FT_HANDLE ftHandle, int atten1, int atten2)
 	
 	// The two attenuators each have 5 control bytes corresponding to 1,2,4,8,16 dB
 	if(atten1 < 0 || atten2 > 31 || atten2 < 0 || atten2 > 31){
-		printf("Unappropriate value for atten22.\n");
+		syslog(LOG_NOTICE, "Unappropriate value for atten22.\n");
 		return ARG_ERR;
 	}
 	
@@ -449,6 +459,8 @@ int set_atten22(FT_HANDLE ftHandle, int atten1, int atten2)
 	if (status != OK)  			return status;
 	if (uC_status != DONE)		return uC_ERR;
 	
+	syslog(LOG_NOTICE, "Set atten22 to %d %d\n", atten1, atten2);
+	
 	return OK;
 }
 
@@ -466,7 +478,7 @@ int set_atten35(FT_HANDLE ftHandle, int atten1, int atten2)
 	
 	// The two attenuators each have 5 control bytes corresponding to 1,2,4,8,16 dB
 	if(atten1 < 0 || atten2 > 31 || atten2 < 0 || atten2 > 31){
-		printf("Unappropriate value for atten35.\n");
+		syslog(LOG_NOTICE, "Unappropriate value for atten35.\n");
 		return 1;
 	}
 	
@@ -496,6 +508,8 @@ int set_atten35(FT_HANDLE ftHandle, int atten1, int atten2)
 	if (status != OK)  			return status;
 	if (uC_status != DONE)		return uC_ERR;
 	
+	syslog(LOG_NOTICE, "Set atten35 to %d %d\n", atten1, atten2);
+	
 	return OK;
 }
 
@@ -515,11 +529,11 @@ void *FT_Read_thread(void *args)
 	FT_STATUS status;
 	struct thread_args *a;
 	a = (struct thread_args *) args;
-	printf("Thread function: Calling FT_Read\n");
+	syslog(LOG_NOTICE, "Thread function: Calling FT_Read\n");
 	status = FT_Read(a->ftHandle, a->pcBufRead, a->read_buffer_size, 
 											   &a->dwBytesRead);
 	
-	printf("THREAD EXITS. read buff size = %d \n", a->read_buffer_size);
+	syslog(LOG_NOTICE, "THREAD EXITS. read buff size = %d \n", a->read_buffer_size);
 	pthread_exit(NULL);
 }
 
@@ -574,16 +588,16 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_bytes_to_read, DATA_STRUCT *data)
 // 	}
 // 	a.dwBytesRead = a.read_buffer_size;
 
-//	printf("Number of bytes read = %d \n", (int)a.dwBytesRead);
+//	syslog(LOG_NOTICE, "Number of bytes read = %d \n", (int)a.dwBytesRead);
 
 	if (a.dwBytesRead < 9){
-		printf("Too few bytes (N<9) read. Error. Exiting...\n");
+		syslog(LOG_NOTICE, "Too few bytes (N<9) read. Error. Exiting...\n");
 		free(a.pcBufRead);
 		return ERR;
 	}
 	
 	if (a.dwBytesRead != a.read_buffer_size){
-		printf("To few bytes read. Read_buffer = %d n_bytes_read = %d\n",
+		syslog(LOG_NOTICE, "To few bytes read. Read_buffer = %d n_bytes_read = %d\n",
 			    a.read_buffer_size, (int)a.dwBytesRead);
 		free(a.pcBufRead);
 		return ERR;
@@ -601,35 +615,35 @@ int start_msrmnt(FT_HANDLE ftHandle, int n_bytes_to_read, DATA_STRUCT *data)
 	//									 = 35 GHz H
 	if (a.pcBufRead[first] % 2 != 0){
 		first = first+9;
-		printf("changed ifrst\n");
+		syslog(LOG_NOTICE, "changed ifrst\n");
 	}
 	
 	int diff, N;
 	diff = last - first;
 	
 	if (diff < 20){
-		printf("too few usefull bytes found\n");
+		syslog(LOG_NOTICE, "too few usefull bytes found\n");
 		free(a.pcBufRead);
 		return ERR;
 	}
 	
 	if (diff % 9 != 0){
-		printf("first or last counter byte wrongly selected\n");
+		syslog(LOG_NOTICE, "first or last counter byte wrongly selected\n");
 		free(a.pcBufRead);
 		return ERR;
 	}
 
 	// DEBUG: write raw data to file
-	FILE *raw_file;
-	raw_file = fopen("raw_data.dat","w");
-	
-	int i;
-	for(i=0; i<a.dwBytesRead; i++){
-		if(i%9 == 0)
-			fprintf(raw_file, "\n");
-		fprintf(raw_file, "%4x ", a.pcBufRead[i]);
-	}
-	fclose(raw_file);
+// 	FILE *raw_file;
+// 	raw_file = fopen("raw_data.dat","w");
+// 	
+// 	int i;
+// 	for(i=0; i<a.dwBytesRead; i++){
+// 		if(i%9 == 0)
+// 			fprintf(raw_file, "\n");
+// 		fprintf(raw_file, "%4x ", a.pcBufRead[i]);
+// 	}
+// 	fclose(raw_file);
 		
 
 	// Each data point in i_q_h_v_data[] holds 8 values 
@@ -685,12 +699,71 @@ void *start_slow_loop(void *args)
 	
 	slow_loop_keep_running = 1;
 	
-	FILE *loop_file = fopen("loop_file.dat","w");
+	time_t t_now, t_old;
+	struct tm *ts;
+	int tm_min_old, tm_min_diff;
+	char filename[23], filename_old[23], sys_string[100];
+	
+	// open file with timestamped filename
+	time(&t_now);
+	ts = gmtime(&t_now);
+	strftime(filename, 23, "loop_%Y%m%d_%H%M.dat", ts);
+	FILE *loop_file = fopen(filename,"w");
+	fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v1 \n");
+	fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
+	fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
+	fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
+	fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
+	fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
+	
+	int foo_count = 0;
+	
+	syslog(LOG_NOTICE, "Starting slow loop\n");
+	tm_min_old = ts->tm_min;
+	
+	
+	// QUICK FIX
+	// With low timeout values we get many missing bytes...
+	// Why that. Should not take to long to read samples here.
+	//
+	// CHECK THIS !!!!!!!!!!!!!!!
+	//
+	// Maybe a problem of block size which is the largest for
+	// fast burst transfer
+	//
+	FT_SetTimeouts(ftHandle, 15000, 15000);
 	
 	// loop to continuously read in bursts of n_samples
 	// as long as slow_loop_keep_running is true
-	while(slow_loop_keep_running == 1){	
-		// open file every minute
+	while(slow_loop_keep_running == 1){
+		// open new file every minute
+		time(&t_now);
+		ts = gmtime(&t_now);
+		tm_min_diff = abs(ts->tm_min - tm_min_old);
+		if(tm_min_diff != 0 && ts->tm_min%1 == 0){
+			strcpy (filename_old, filename);
+			// new filename
+			strftime(filename, 23, "loop_%Y%m%d_%H%M.dat", ts);
+			// close old file
+			fclose(loop_file);
+			// zip file to data_send directory
+			sprintf(sys_string, "gzip -c %s > /root/data_to_send/%s.gz", 
+					filename_old, filename_old);
+			system(sys_string);
+			// remove file
+			sprintf(sys_string, "rm %s", filename_old);
+			system(sys_string);
+			// open new file
+			loop_file = fopen(filename,"w");
+			tm_min_old = ts->tm_min;
+			// Write header
+			fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v1 \n");
+			fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
+			fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
+			fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
+			fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
+			fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
+		}
 		
 		// read in case temperature
 		// explanation see function get_case_temp
@@ -704,7 +777,7 @@ void *start_slow_loop(void *args)
 		gettimeofday(&tim, NULL);
 		
 		//fprintf(loop_file, ctime(&tim.tv_sec));
-		fprintf(loop_file, "%ld.%ld ", tim.tv_sec, tim.tv_usec/1000);
+		fprintf(loop_file, "%ld.%03ld ", tim.tv_sec, tim.tv_usec/1000);
 		
 		// read in board temperature
 		read_byte(ftHandle, &c_lsb);
@@ -734,7 +807,7 @@ void *start_slow_loop(void *args)
 		
 		// check data
 		if (dwBytesRead != read_buffer_size){
-			printf("slow_loop: too few byte read\n");
+			syslog(LOG_NOTICE, "slow_loop: too few byte read\n");
 		}
 		// erase this and write a clear read in and check routine!!!!!!!!!!!!!
 		int first, last;
@@ -742,41 +815,67 @@ void *start_slow_loop(void *args)
 		int diff = last-first;
 		N = floor((diff+9)/18);
 		
-		// process data
-		raw2_i_q_h_v_data(pcBufRead, data, N, first, last);
-		mean(data, 0); // 0 because no sample shall be skipped
-		std_dev(data, 0);	
-
-		// build timestamp
 		
-		// write data to file
-// 		int i;
-// 		for(i=0; i<dwBytesRead; i++){
-// 		if(i%9 == 0)
-// 			fprintf(loop_file, "\n");
-// 		fprintf(loop_file, "%4x ", pcBufRead[i]);
-// 		}
-// 		int j;
-// 		for (j = 0; j< N; j++){	
-// 			fprintf(loop_file,"%6d: %6d %6d %6d %6d %6d %6d %6d %6d\n", j, 
-// 					data->h_i_35->values[j], data->h_q_35->values[j],
-// 					data->h_i_22->values[j], data->h_q_22->values[j], 
-// 					data->v_i_35->values[j], data->v_q_35->values[j],
-// 					data->v_i_22->values[j], data->v_q_22->values[j]);
-// 		}
-		
-// 		fprintf(loop_file, "\n\n");
-// 
-//  		fprintf(loop_file, "%d %d \n", first, last);
-		
-		fprintf(loop_file, 
-		 "%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %d %d %d\n",
-					data->h_i_35->mean, data->h_q_35->mean,
-					data->h_i_22->mean, data->h_q_22->mean,  
-					data->v_i_35->mean, data->v_q_35->mean,
-					data->v_i_22->mean, data->v_q_22->mean,
+		// if there is a glitch in the data purge USB buffer and write
+		// error to file
+		if ((last-first-9)%18 != 0){
+			syslog(LOG_NOTICE, "last - first is not mod 18!!\n");
+			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX); // safer to do this twice
+			fprintf(loop_file, 
+					"9999 9999 9999 9999 9999 9999 9999 9999 %5.1f %5.1f %d %d %d\n",
 					case_temp, board_temp, accel1, accel2, reset_count);
+		}
+		else{	
+			// process data
+			raw2_i_q_h_v_data(pcBufRead, data, N, first, last);
+			mean(data, 0); // 0 because no sample shall be skipped
+			std_dev(data, 0);	
+
+			// build timestamp
+			
+			// write data to file
+
+			
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// ADD STANDARD DEVIATION !!!!!!
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			fprintf(loop_file, 
+			"%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %d %d %d\n",
+						data->h_a_35->mean, data->h_p_35->mean,
+						data->h_a_22->mean, data->h_p_22->mean,  
+						data->v_a_35->mean, data->v_p_35->mean,
+						data->v_a_22->mean, data->v_p_22->mean,
+						case_temp, board_temp, accel1, accel2, reset_count);
+			// OLD FILE TYPE WITH AVERAGED I Q DATA
+//			fprintf(loop_file, 
+// 			"%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %d %d %d\n",
+// 						data->h_i_35->mean, data->h_q_35->mean,
+// 						data->h_i_22->mean, data->h_q_22->mean,  
+// 						data->v_i_35->mean, data->v_q_35->mean,
+// 						data->v_i_22->mean, data->v_q_22->mean,
+// 						case_temp, board_temp, accel1, accel2, reset_count);
+						
+// 			foo_count++;
+// 			if(foo_count % 20 == 0){
+// 				syslog(LOG_NOTICE, "%5.1f %5.1f %5.1f %5.1f \n", 
+// 					   sqrt(pow(data->h_i_35->mean,2) + pow(data->h_q_35->mean,2)),
+// 					   sqrt(pow(data->v_i_35->mean,2) + pow(data->v_q_35->mean,2)),
+// 					   sqrt(pow(data->h_i_22->mean,2) + pow(data->h_q_22->mean,2)),
+// 					   sqrt(pow(data->v_i_22->mean,2) + pow(data->v_q_22->mean,2)) );
+//	 		}
+		}		
 	}	// end loop
+  
+	// Send the command to stop measuring
+	write_byte(ftHandle, STOP_SLOW_LOOP);
+	
+	// Purge buffers, because there may be some data from slow_loop that
+	// was not read in.
+	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+
+	syslog(LOG_NOTICE, "Slow low stopped\n");
 
 	fclose(loop_file);
 	free_data_struct(data);
@@ -787,8 +886,6 @@ void *start_slow_loop(void *args)
 
 int stop_slow_loop(FT_HANDLE ftHandle)
 {
-	// Send the command to start measuring
-	write_byte(ftHandle, STOP_SLOW_LOOP);
 	// set flag to stop measurement loop and make thread to return
 	slow_loop_keep_running = 0;
 	
@@ -799,10 +896,10 @@ int set_case_temp(FT_HANDLE ftHandle,int t)
 {
 	if (t < 10 || t > 50)
 	{
-		printf("Desired temperature not in range\n\n");
+		syslog(LOG_NOTICE, "Desired temperature not in range\n\n");
 		return 1;
 	}
-	printf("Set case temperature to %d\n", t);
+	syslog(LOG_NOTICE, "Set case temperature to %d\n", t);
 	char temp = (char)t;
 	write_byte(ftHandle, SET_CASE_TEMP);
 	
@@ -818,7 +915,7 @@ int get_case_temp(FT_HANDLE ftHandle)
 	char c_t_msb, c_t_lsb;
 	double case_temp = 0;
 
-	printf("Get case temperature\n");
+	syslog(LOG_NOTICE, "Get case temperature\n");
 
 	write_byte(ftHandle, GET_CASE_TEMP);
 	
@@ -839,7 +936,7 @@ int get_case_temp(FT_HANDLE ftHandle)
 	// a 0.5 addition.
 	case_temp = t_msb - 0.5 * t_lsb/128;
 
-	printf("Case temperature %.1f \n", t_msb - 0.5 * t_lsb/128);
+	syslog(LOG_NOTICE, "Case temperature %.1f \n", t_msb - 0.5 * t_lsb/128);
 	syslog (LOG_NOTICE, "Case temperature = %.1f \n", case_temp);
 	
 	return 0;
@@ -849,10 +946,10 @@ int set_board_temp(FT_HANDLE ftHandle,int t)
 {
 	if (t < 10 || t > 50)
 	{
-		printf("Desired temperature not in range\n\n");
+		syslog(LOG_NOTICE, "Desired temperature not in range\n\n");
 		return 1;
 	}
-	printf("Set board temperature to %d\n", t);
+	syslog(LOG_NOTICE, "Set board temperature to %d\n", t);
 	char temp = (char)t;
 	write_byte(ftHandle, SET_BOARD_TEMP);
 	
@@ -868,7 +965,7 @@ int get_board_temp(FT_HANDLE ftHandle)
 	char c_t_msb, c_t_lsb;
 	double case_temp = 0;
 
-	printf("Get board temperature\n");
+	syslog(LOG_NOTICE, "Get board temperature\n");
 
 	write_byte(ftHandle, GET_BOARD_TEMP);
 	
@@ -889,8 +986,23 @@ int get_board_temp(FT_HANDLE ftHandle)
 	// a 0.5 addition.
 	case_temp = t_msb - 0.5 * t_lsb/128;
 
-	printf("Board temperature %.1f \n", t_msb - 0.5 * t_lsb/128);
+	syslog(LOG_NOTICE, "Board temperature %.1f \n", t_msb - 0.5 * t_lsb/128);
 	syslog (LOG_NOTICE, "Board temperature = %.1f \n", case_temp);
+	
+	return OK;
+}
+
+int set_loop_freq(FT_HANDLE ftHandle, int f)
+{
+	if (f != 5 && f != 10 && f != 20)
+	{
+		syslog(LOG_NOTICE, "Loop frequency not supported (chose 20 Hz, 10 Hz or 5 Hz)\n\n");
+		return ARG_ERR;
+	}
+	syslog(LOG_NOTICE, "Set loop_freq to %d\n", f);
+	if (f == 5) write_byte(ftHandle, SET_LOOP_FREQ_5);
+	else if (f == 10) write_byte(ftHandle, SET_LOOP_FREQ_10);
+	else if (f == 20) write_byte(ftHandle, SET_LOOP_FREQ_20);
 	
 	return OK;
 }
@@ -900,13 +1012,13 @@ int get_lock(FT_HANDLE ftHandle)
 	unsigned char value, uC_status;
 	int status;	
 	
-	printf("Get lock indicators\n");
+	syslog(LOG_NOTICE, "Get lock indicators\n");
 	
 	write_byte(ftHandle, GET_LOCK);
 	
 	read_byte(ftHandle, &value);
 	
-	printf("Lock indicators: %d\n", (int)value);
+	syslog(LOG_NOTICE, "Lock indicators: %d\n", (int)value);
 	
 	// Wait for done message
 	status = read_byte(ftHandle, &uC_status);
@@ -924,7 +1036,7 @@ int get_adc4(FT_HANDLE ftHandle)
 	double adc_value = 0;
 	int status;
 	
-	printf("Get adc4 value\n");
+	syslog(LOG_NOTICE, "Get adc4 value\n");
 
 	write_byte(ftHandle, GET_ADC4);
 	
@@ -933,7 +1045,7 @@ int get_adc4(FT_HANDLE ftHandle)
 		
 	adc_value = ((double)c_msb*256 + (double)c_lsb) * V_REF/1024;
 	
-	printf("ADC4 %.4f \n", adc_value);
+	syslog(LOG_NOTICE, "ADC4 %.4f \n", adc_value);
 	
 	// Wait for done message
 	status = read_byte(ftHandle, &uC_status);
@@ -949,7 +1061,7 @@ int get_adc5(FT_HANDLE ftHandle)
 	double adc_value = 0;
 	int status;
 	
-	printf("Get adc5 value\n");
+	syslog(LOG_NOTICE, "Get adc5 value\n");
 
 	write_byte(ftHandle, GET_ADC5);
 	
@@ -958,7 +1070,7 @@ int get_adc5(FT_HANDLE ftHandle)
 		
 	adc_value = ((double)c_msb*256 + (double)c_lsb) * V_REF/1024;
 	
-	printf("ADC5 %.4f \n", adc_value);
+	syslog(LOG_NOTICE, "ADC5 %.4f \n", adc_value);
 	
 	// Wait for done message
 	status = read_byte(ftHandle, &uC_status);
@@ -974,7 +1086,7 @@ int get_adc6(FT_HANDLE ftHandle)
 	double adc_value = 0;
 	int status;
 	
-	printf("Get adc6 value\n");
+	syslog(LOG_NOTICE, "Get adc6 value\n");
 
 	write_byte(ftHandle, GET_ADC6);
 	
@@ -983,7 +1095,7 @@ int get_adc6(FT_HANDLE ftHandle)
 		
 	adc_value = ((double)c_msb*256 + (double)c_lsb) * V_REF/1024;
 	
-	printf("ADC6 %.4f \n", adc_value);
+	syslog(LOG_NOTICE, "ADC6 %.4f \n", adc_value);
 	
 	// Wait for done message
 	status = read_byte(ftHandle, &uC_status);
@@ -999,7 +1111,7 @@ int get_adc7(FT_HANDLE ftHandle)
 	double adc_value = 0;
 	int status;
 	
-	printf("Get adc7 value\n");
+	syslog(LOG_NOTICE, "Get adc7 value\n");
 
 	write_byte(ftHandle, GET_ADC7);
 	
@@ -1008,7 +1120,7 @@ int get_adc7(FT_HANDLE ftHandle)
 		
 	adc_value = ((double)c_msb*256 + (double)c_lsb) * V_REF/1024;
 	
-	printf("ADC7 %.4f \n", adc_value);
+	syslog(LOG_NOTICE, "ADC7 %.4f \n", adc_value);
 	
 	// Wait for done message
 	status = read_byte(ftHandle, &uC_status);
@@ -1021,7 +1133,7 @@ int get_adc7(FT_HANDLE ftHandle)
 int set_reset_count(FT_HANDLE ftHandle)
 {
 
-	printf("Set reset count back to 0\n");
+	syslog(LOG_NOTICE, "Set reset count back to 0\n");
 	write_byte(ftHandle, SET_RESET_COUNT);
 
 	return 0;
@@ -1032,13 +1144,13 @@ int get_reset_count(FT_HANDLE ftHandle)
 	int reset_count = 0;
 	char c_reset_count;
 	
-	printf("Get reset count\n");
+	syslog(LOG_NOTICE, "Get reset count\n");
 	write_byte(ftHandle, GET_RESET_COUNT);
 //	reset_count = (int)read_byte(ftHandle);
 	read_byte(ftHandle, &c_reset_count);
 	reset_count = (int)c_reset_count;
 
-	printf("%d resets\n\n", reset_count);
+	syslog(LOG_NOTICE, "%d resets\n\n", reset_count);
 	syslog (LOG_NOTICE, "Resets = %d \n", reset_count);
 	
 	return 0;
@@ -1054,7 +1166,7 @@ int get_device_list_info()
 	ftStatus = FT_CreateDeviceInfoList(&numDevs);
 
 	if (ftStatus == FT_OK){
-		printf("Number of devices is %d \n", (int)numDevs);
+		syslog(LOG_NOTICE, "Number of devices is %d \n", (int)numDevs);
 	}
 
 	if (numDevs > 0){
@@ -1063,14 +1175,14 @@ int get_device_list_info()
 		ftStatus = FT_GetDeviceInfoList(devInfo, &numDevs);
 		if (ftStatus == FT_OK){
 			for (i = 0; i < numDevs; i++){
-				printf("Dev %d:\n", i);
-				printf("  Flags=0x%x\n", (int)devInfo[i].Flags);
-				printf("  Type=0x%x\n", (int)devInfo[i].Type);
-				printf("  IF=0x%x\n", (int)devInfo[i].ID);
-				printf("  LocId=0x%x\n", (int)devInfo[i].LocId);
-				printf("  SerialNumber=0x%x\n",(int) devInfo[i].SerialNumber);
-				printf("  Description=%s\n", devInfo[i].Description);
-				printf("  ftHandle=0x%x\n", (int)devInfo[i].ftHandle);
+				syslog(LOG_NOTICE, "Dev %d:\n", i);
+				syslog(LOG_NOTICE, "  Flags=0x%x\n", (int)devInfo[i].Flags);
+				syslog(LOG_NOTICE, "  Type=0x%x\n", (int)devInfo[i].Type);
+				syslog(LOG_NOTICE, "  IF=0x%x\n", (int)devInfo[i].ID);
+				syslog(LOG_NOTICE, "  LocId=0x%x\n", (int)devInfo[i].LocId);
+				syslog(LOG_NOTICE, "  SerialNumber=0x%x\n",(int) devInfo[i].SerialNumber);
+				syslog(LOG_NOTICE, "  Description=%s\n", devInfo[i].Description);
+				syslog(LOG_NOTICE, "  ftHandle=0x%x\n", (int)devInfo[i].ftHandle);
 			}
 		}
 	}
@@ -1107,7 +1219,7 @@ int check_read_data (unsigned char *raw_data, DWORD n_raw, int *first, int *last
 	
 	int i,j;
 	for (i = 0; i < n_raw-9; i++){
-		//printf("i = %d : %d - %d\n", i, raw_data[i], raw_data[i+9]);
+		//syslog(LOG_NOTICE, "i = %d : %d - %d\n", i, raw_data[i], raw_data[i+9]);
 		// find the first byte that could be a counter byte
 		if (raw_data[i]-raw_data[i+9]==-3 || 
 		    (raw_data[i] == 253 && raw_data[i+9] == 0 ) ||
@@ -1122,11 +1234,11 @@ int check_read_data (unsigned char *raw_data, DWORD n_raw, int *first, int *last
 					(raw_data[j] == 254 && raw_data[j+9] == 1 ) ||
 					(raw_data[j] == 255 && raw_data[j+9] == 2 ) ){
 					last_temp = j;
-					//printf("j = %d : %d - %d\n", j, raw_data[j], raw_data[j+9]);
+					//syslog(LOG_NOTICE, "j = %d : %d - %d\n", j, raw_data[j], raw_data[j+9]);
 				}
 				// if the checked byte is a counter no more, exit this search loop
 				else {
-					//printf("found %d %d\n", first_temp, last_temp);
+					//syslog(LOG_NOTICE, "found %d %d\n", first_temp, last_temp);
 					break;
 				}
 			}
@@ -1168,14 +1280,14 @@ int raw2_i_q_h_v_data(unsigned char *raw_data, DATA_STRUCT *data,
 	int j = 0; // counter for data[j]
 	
 	if ((last-first-9)%18 != 0){
-		printf("last - first is not mod 18!!\n");
+		syslog(LOG_NOTICE, "last - first is not mod 18!!\n");
 	}
 	
 	//FILE *file;
 	//file = fopen("out.dat","w");
 	
 	for (i = first; i<=last; i = i + 18){
-		//printf("j = %d", j);
+		//syslog(LOG_NOTICE, "j = %d", j);
 		
 		// Assign the right 2 bytes and drop the  4 bits 
 		// of the first byte int the stream because they are meaningless
@@ -1198,6 +1310,16 @@ int raw2_i_q_h_v_data(unsigned char *raw_data, DATA_STRUCT *data,
 		if (data->h_q_22->values[j] > 2047) data->h_q_22->values[j] += -4096;
 		if (data->h_i_22->values[j] > 2047) data->h_i_22->values[j] += -4096;
 		
+		// correct ADC offsets (calibration done in lab on 09.July.2010)
+		data->h_q_35->values[j] += ADC_OFFSET_Q_35;
+		data->h_i_35->values[j] += ADC_OFFSET_I_35;
+		data->v_q_22->values[j] += ADC_OFFSET_Q_22;
+		data->v_i_22->values[j] += ADC_OFFSET_I_22;
+		data->v_q_35->values[j] += ADC_OFFSET_Q_35;
+		data->v_i_35->values[j] += ADC_OFFSET_I_35;
+		data->h_q_22->values[j] += ADC_OFFSET_Q_22;
+		data->h_i_22->values[j] += ADC_OFFSET_I_22;
+		
 		//fprintf(file,"%d: %d %d %d %d %d %d %d %d\n",
 		//	j, data[j].h_q_35, data[j].h_i_35, data[j].h_q_22, data[j].h_i_22,
 		//	   data[j].v_q_35, data[j].v_i_35, data[j].v_q_22, data[j].v_i_22);
@@ -1211,53 +1333,53 @@ int raw2_i_q_h_v_data(unsigned char *raw_data, DATA_STRUCT *data,
 
 
 // OBSOLETE
-int raw2_i_q_data(unsigned char *raw_data, struct i_q_data *data, 
-				  int N, int first, int last)
-{
-	int i;
-	//int temp;
-	int j = 0; // counter for data[j]
-	
-	FILE *file;
-	file = fopen("out.dat","w");
-	
-	for (i = first; i<=last; i = i + 9){
-		//printf("%d : %d %x %x %x %x %x %x %x %x\n", i, raw_data[i], raw_data[i+1], 
-		//	    raw_data[i+2], raw_data[i+3], raw_data[i+4], raw_data[i+5], 
-		//	    raw_data[i+6], raw_data[i+7], raw_data[i+8]);
-		//printf("%d : %d %d %d %d %d\n", i, raw_data[i], 
-		//	    raw_data[i+1]+16*raw_data[i+2],	raw_data[i+3]+16*raw_data[i+4], 
-		//	    raw_data[i+5]+16*raw_data[i+6], raw_data[i+7]+16*raw_data[i+8]);
-		
-		// Assign the right 2 bytes and drop the  4 bits 
-		// of the first byte int the stream because they are meaningless
-		
-		data[j].q_35 = (double) (256*raw_data[i+1] & '\xF0') + raw_data[i+2];
-		data[j].i_35 = (double) (256*raw_data[i+3] & '\xF0') + raw_data[i+4];
-		data[j].q_22 = (double) (256*raw_data[i+5] & '\xF0') + raw_data[i+6];
-		data[j].i_22 = (double) (256*raw_data[i+7] & '\xF0') + raw_data[i+8];
-		
-		// MAYBE BETTER TO SAFE THE RAW DATA DIRECTLY, NEEDS LESS SPACE
-		// Convert to real voltage
-		//data[j].q_35 = adc_transfer_funct(data[j].q_35);
-		//data[j].i_35 = adc_transfer_funct(data[j].i_35);
-		//data[j].q_22 = adc_transfer_funct(data[j].q_22);
-		//data[j].i_22 = adc_transfer_funct(data[j].i_22);
-		
-//		printf("%d : %x %x %f %d \n", i, raw_data[i+1], raw_data[i+2],
-//			   data[j].q_35, (256*raw_data[i+1]) + raw_data[i+2] );
-		
-//		printf("%d: %6.2f %6.2f %6.2f %6.2f\n", j, 
-//			   data[j].q_35, data[j].i_35, data[j].q_22, data[j].i_22);
-		
-			fprintf(file,"%d: %6.2f %6.2f %6.2f %6.2f\n", j, 
-				data[j].q_35, data[j].i_35, data[j].q_22, data[j].i_22);
-
-		j++;
-	}
-	fclose(file);
-	return 0;
-}
+// int raw2_i_q_data(unsigned char *raw_data, struct i_q_data *data, 
+// 				  int N, int first, int last)
+// {
+// 	int i;
+// 	//int temp;
+// 	int j = 0; // counter for data[j]
+// 	
+// 	FILE *file;
+// 	file = fopen("out.dat","w");
+// 	
+// 	for (i = first; i<=last; i = i + 9){
+// 		//syslog(LOG_NOTICE, "%d : %d %x %x %x %x %x %x %x %x\n", i, raw_data[i], raw_data[i+1], 
+// 		//	    raw_data[i+2], raw_data[i+3], raw_data[i+4], raw_data[i+5], 
+// 		//	    raw_data[i+6], raw_data[i+7], raw_data[i+8]);
+// 		//syslog(LOG_NOTICE, "%d : %d %d %d %d %d\n", i, raw_data[i], 
+// 		//	    raw_data[i+1]+16*raw_data[i+2],	raw_data[i+3]+16*raw_data[i+4], 
+// 		//	    raw_data[i+5]+16*raw_data[i+6], raw_data[i+7]+16*raw_data[i+8]);
+// 		
+// 		// Assign the right 2 bytes and drop the  4 bits 
+// 		// of the first byte int the stream because they are meaningless
+// 		
+// 		data[j].q_35 = (double) (256*raw_data[i+1] & '\xF0') + raw_data[i+2];
+// 		data[j].i_35 = (double) (256*raw_data[i+3] & '\xF0') + raw_data[i+4];
+// 		data[j].q_22 = (double) (256*raw_data[i+5] & '\xF0') + raw_data[i+6];
+// 		data[j].i_22 = (double) (256*raw_data[i+7] & '\xF0') + raw_data[i+8];
+// 		
+// 		// MAYBE BETTER TO SAFE THE RAW DATA DIRECTLY, NEEDS LESS SPACE
+// 		// Convert to real voltage
+// 		//data[j].q_35 = adc_transfer_funct(data[j].q_35);
+// 		//data[j].i_35 = adc_transfer_funct(data[j].i_35);
+// 		//data[j].q_22 = adc_transfer_funct(data[j].q_22);
+// 		//data[j].i_22 = adc_transfer_funct(data[j].i_22);
+// 		
+// //		syslog(LOG_NOTICE, "%d : %x %x %f %d \n", i, raw_data[i+1], raw_data[i+2],
+// //			   data[j].q_35, (256*raw_data[i+1]) + raw_data[i+2] );
+// 		
+// //		syslog(LOG_NOTICE, "%d: %6.2f %6.2f %6.2f %6.2f\n", j, 
+// //			   data[j].q_35, data[j].i_35, data[j].q_22, data[j].i_22);
+// 		
+// 			fprintf(file,"%d: %6.2f %6.2f %6.2f %6.2f\n", j, 
+// 				data[j].q_35, data[j].i_35, data[j].q_22, data[j].i_22);
+// 
+// 		j++;
+// 	}
+// 	fclose(file);
+// 	return 0;
+// }
 
 
 double adc_transfer_funct(double raw_value)
@@ -1272,7 +1394,7 @@ double adc_transfer_funct(double raw_value)
 			value = +0.5*lsb + (raw_value - 4096)*lsb;
 	}
 	else{
-		printf("ADC TRANSFER ERROR\n");
+		syslog(LOG_NOTICE, "ADC TRANSFER ERROR\n");
 	}
 // ADD ERROR CHECKING	
 	return value;
@@ -1326,6 +1448,16 @@ DATA_STRUCT *create_data_struct(int N)
 	data->v_q_22 = malloc(sizeof *(data->v_q_22));
 	data->v_i_35 = malloc(sizeof *(data->v_i_35));
 	data->v_q_35 = malloc(sizeof *(data->v_q_35));
+
+	data->h_a_22 = malloc(sizeof *(data->h_a_22));
+	data->h_p_22 = malloc(sizeof *(data->h_p_22));
+	data->h_a_35 = malloc(sizeof *(data->h_a_35));
+	data->h_p_35 = malloc(sizeof *(data->h_p_35));
+	data->v_a_22 = malloc(sizeof *(data->v_a_22));
+	data->v_p_22 = malloc(sizeof *(data->v_p_22));
+	data->v_a_35 = malloc(sizeof *(data->v_a_35));
+	data->v_p_35 = malloc(sizeof *(data->v_p_35));
+	
 	data->h_i_22->values = malloc(sizeof *(data->h_i_22->values) * N);
 	data->h_q_22->values = malloc(sizeof *(data->h_q_22->values) * N);
 	data->h_i_35->values = malloc(sizeof *(data->h_i_35->values) * N);
@@ -1335,6 +1467,15 @@ DATA_STRUCT *create_data_struct(int N)
 	data->v_i_35->values = malloc(sizeof *(data->v_i_35->values) * N);
 	data->v_q_35->values = malloc(sizeof *(data->v_q_35->values) * N);
 	
+	data->h_a_22->values = malloc(sizeof *(data->h_a_22->values) * N);
+	data->h_p_22->values = malloc(sizeof *(data->h_p_22->values) * N);
+	data->h_a_35->values = malloc(sizeof *(data->h_a_35->values) * N);
+	data->h_p_35->values = malloc(sizeof *(data->h_p_35->values) * N);
+	data->v_a_22->values = malloc(sizeof *(data->v_a_22->values) * N);
+	data->v_p_22->values = malloc(sizeof *(data->v_p_22->values) * N);
+	data->v_a_35->values = malloc(sizeof *(data->v_a_35->values) * N);
+	data->v_p_35->values = malloc(sizeof *(data->v_p_35->values) * N);
+
 	return data;
 }
 
@@ -1357,6 +1498,24 @@ int free_data_struct(DATA_STRUCT *data)
 	free(data->v_q_22);
 	free(data->v_i_35);
 	free(data->v_q_35);
+	
+	free(data->h_a_22->values);
+	free(data->h_p_22->values);
+	free(data->h_a_35->values);
+	free(data->h_p_35->values);
+	free(data->v_a_22->values);
+	free(data->v_p_22->values);
+	free(data->v_a_35->values);
+	free(data->v_p_35->values);
+	free(data->h_a_22);
+	free(data->h_p_22);
+	free(data->h_a_35);
+	free(data->h_p_35);
+	free(data->v_a_22);
+	free(data->v_p_22);
+	free(data->v_a_35);
+	free(data->v_p_35);
+	
 	free(data);
 	
 	return OK;
@@ -1368,7 +1527,7 @@ int free_data_struct(DATA_STRUCT *data)
 /////////////
 // int main(int argc, char *argv[])
 // {
-// 	printf("\n");
+// 	syslog(LOG_NOTICE, "\n");
 // 
 // 	FILE * fh;
 // 	int j,i;
@@ -1381,7 +1540,7 @@ int free_data_struct(DATA_STRUCT *data)
 // 	status = open_device(&ftHandle);
 // 	if (status != OK)
 // 	{
-// 		printf("Open device failed. Exit.\n\n");
+// 		syslog(LOG_NOTICE, "Open device failed. Exit.\n\n");
 // 		exit(ERR);
 // 	}
 // 
@@ -1440,7 +1599,7 @@ int free_data_struct(DATA_STRUCT *data)
 // 		text = (char*) malloc(length);
 // 		// Read the text
 // 		read(client_socket, text, length);
-// 		printf("%s\n", text);
+// 		syslog(LOG_NOTICE, "%s\n", text);
 // 		free(text);
 // 	} while (1);
 // 	
@@ -1494,16 +1653,16 @@ int free_data_struct(DATA_STRUCT *data)
 // 
 // 	else if (argc == 1){
 // 		set_pw(ftHandle, 100);
-// 		printf("\n");
+// 		syslog(LOG_NOTICE, "\n");
 // 		sleep(1);
 // 		set_num_samples(ftHandle, 4000);
-// 		printf("\n");
+// 		syslog(LOG_NOTICE, "\n");
 // 		sleep(1);
 // 		set_delay(ftHandle, 600);
-// 		printf("\n");
+// 		syslog(LOG_NOTICE, "\n");
 // 		sleep(1);
 // 		set_mode(ftHandle, COPOL);
-// 		printf("\n");
+// 		syslog(LOG_NOTICE, "\n");
 // 		sleep(1);
 // 		start_msrmnt(ftHandle, 40000);
 // 	}

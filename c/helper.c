@@ -32,6 +32,11 @@ int mean(DATA_STRUCT *data, int skip)
 	signed long sum_v_i_35 = 0;
 	signed long sum_v_q_35 = 0;
 	
+	signed long sum_h_a_22 = 0;
+	signed long sum_h_a_35 = 0;
+	signed long sum_v_a_22 = 0;
+	signed long sum_v_a_35 = 0;
+		
 	for (i = skip; i < data->N; i++){
 		sum_h_i_22 += data->h_i_22->values[i];
 		sum_h_q_22 += data->h_q_22->values[i];
@@ -41,6 +46,11 @@ int mean(DATA_STRUCT *data, int skip)
 		sum_v_q_22 += data->v_q_22->values[i];
 		sum_v_i_35 += data->v_i_35->values[i];
 		sum_v_q_35 += data->v_q_35->values[i];
+		
+		sum_h_a_22 += amp(data->h_i_22->values[i], data->h_q_22->values[i]);
+		sum_h_a_35 += amp(data->h_i_35->values[i], data->h_q_35->values[i]);
+		sum_v_a_22 += amp(data->v_i_22->values[i], data->v_q_22->values[i]);
+		sum_v_a_35 += amp(data->v_i_35->values[i], data->v_q_35->values[i]);
 	}
 	data->h_i_22->mean = (double)sum_h_i_22/N;
 	data->h_q_22->mean = (double)sum_h_q_22/N;
@@ -50,6 +60,17 @@ int mean(DATA_STRUCT *data, int skip)
 	data->v_q_22->mean = (double)sum_v_q_22/N;
 	data->v_i_35->mean = (double)sum_v_i_35/N;
 	data->v_q_35->mean = (double)sum_v_q_35/N;
+	
+	data->h_a_22->mean = (double)sum_h_a_22/N;
+	data->h_p_22->mean = pha(data->h_i_22->mean, data->h_q_22->mean);
+	data->h_a_35->mean = (double)sum_h_a_35/N;
+	data->h_p_35->mean = pha(data->h_i_35->mean, data->h_q_35->mean);
+	data->v_a_22->mean = (double)sum_v_a_22/N;
+	data->v_p_22->mean = pha(data->v_i_22->mean, data->v_q_22->mean);
+	data->v_a_35->mean = (double)sum_v_a_35/N;
+	data->v_p_35->mean = pha(data->v_i_35->mean, data->v_q_35->mean);
+	
+	
 /*	printf("%d %d\n", sum_h_i_22, sum_v_i_35);
 	printf("%.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f \n",
 			data->h_i_22->mean, data->h_q_22->mean, 
@@ -78,6 +99,15 @@ int std_dev(DATA_STRUCT *data, int skip)
 	signed long std_dev_v_i_35 = 0;
 	signed long std_dev_v_q_35 = 0;
 	
+	signed long std_dev_h_a_22 = 0;
+	signed long std_dev_h_p_22 = 0;
+	signed long std_dev_h_a_35 = 0;
+	signed long std_dev_h_p_35 = 0;
+	signed long std_dev_v_a_22 = 0;
+	signed long std_dev_v_p_22 = 0;
+	signed long std_dev_v_a_35 = 0;
+	signed long std_dev_v_p_35 = 0;
+	
 	for (i = skip; i < data->N; i++){
 		std_dev_h_i_22 += pow(data->h_i_22->values[i] - data->h_i_22->mean, 2);
 		std_dev_h_q_22 += pow(data->h_q_22->values[i] - data->h_q_22->mean, 2);
@@ -87,6 +117,17 @@ int std_dev(DATA_STRUCT *data, int skip)
 		std_dev_v_q_22 += pow(data->v_q_22->values[i] - data->v_q_22->mean, 2);
 		std_dev_v_i_35 += pow(data->v_i_35->values[i] - data->v_i_35->mean, 2);
 		std_dev_v_q_35 += pow(data->v_q_35->values[i] - data->v_q_35->mean, 2);
+		
+		std_dev_h_a_22 += pow(data->h_a_22->values[i] - data->h_a_22->mean, 2);
+		std_dev_h_a_35 += pow(data->h_a_35->values[i] - data->h_a_35->mean, 2);
+		std_dev_v_a_22 += pow(data->v_a_22->values[i] - data->v_a_22->mean, 2);
+		std_dev_v_a_35 += pow(data->v_a_35->values[i] - data->v_a_35->mean, 2);
+
+		// STD_DEV of the phase angle?? (How to do this mathematically correct????)
+		std_dev_h_p_22 += pow(data->h_i_22->values[i] - data->h_i_22->mean, 2)/2 + pow(data->h_q_22->values[i] - data->h_q_22->mean, 2)/2;;
+		std_dev_h_p_35 += pow(data->h_i_35->values[i] - data->h_i_35->mean, 2)/2 + pow(data->h_q_35->values[i] - data->h_q_35->mean, 2)/2;;
+		std_dev_v_p_22 += pow(data->v_i_22->values[i] - data->v_i_22->mean, 2)/2 + pow(data->v_q_22->values[i] - data->v_q_22->mean, 2)/2;;
+		std_dev_v_p_35 += pow(data->v_i_35->values[i] - data->v_i_35->mean, 2)/2 + pow(data->v_q_35->values[i] - data->v_q_35->mean, 2)/2;;
 	}
 	
 	//??????????????????????????????????????????
@@ -100,6 +141,15 @@ int std_dev(DATA_STRUCT *data, int skip)
 	data->v_i_35->std_dev = sqrt((double)std_dev_v_i_35/(N-1));
 	data->v_q_35->std_dev = sqrt((double)std_dev_v_q_35/(N-1));
 	
+	data->h_a_22->std_dev = sqrt((double)std_dev_h_a_22/(N-1));
+	data->h_p_22->std_dev = sqrt((double)std_dev_h_p_22/(N-1));
+	data->h_a_35->std_dev = sqrt((double)std_dev_h_a_35/(N-1));
+	data->h_p_35->std_dev = sqrt((double)std_dev_h_p_35/(N-1));
+	data->v_a_22->std_dev = sqrt((double)std_dev_v_a_22/(N-1));
+	data->v_p_22->std_dev = sqrt((double)std_dev_v_p_22/(N-1));
+	data->v_a_35->std_dev = sqrt((double)std_dev_v_a_35/(N-1));
+	data->v_p_35->std_dev = sqrt((double)std_dev_v_p_35/(N-1));
+	
 	return OK;
 }
 
@@ -110,10 +160,10 @@ double amp(int I, int Q)
 
 double pha(int I, int Q)
 {
-	if(Q > 0) return atan((double)Q/I) * 180 / PI;
-	if(Q < 0) return atan((double)Q/I) * 180 / PI + 360;
-	if(Q == 0 && I > 0) return 90;
-	if(Q == 0 && I < 0) return 270;
+	if(I > 0) return atan((double)Q/I) * 180 / PI;
+	if(I < 0) return atan((double)Q/I) * 180 / PI + 180;
+	if(I == 0 && Q > 0) return 90;
+	if(I == 0 && Q < 0) return 270;
 	else return 0;
 }
 

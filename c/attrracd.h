@@ -2,15 +2,15 @@
 #define ATTRRACD_H
 
 /* file locations */
-#define CONF_FILE 			"attrracd.conf"
-#define DATA_DIR 			"./data"
-#define TEMP_DIR			"./tmp"
+#define CONF_FILE 		"attrracd.conf"
+#define DATA_DIR 		"./data"
+#define TEMP_DIR		"./tmp"
 #define MASTERD_LOCK_FILE 	"attrracd.lock"
 
 #define SOCKET_PATH 		"attrracd_socket"
-#define MAX_LENGTH 			32
+#define MAX_LENGTH 		32
 
-#define SKIP				20
+#define SKIP			20
 
 // NOT USED ANYMORE??!!
 

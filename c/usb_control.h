@@ -19,26 +19,30 @@ int slow_loop_keep_running;
 // for CPLD settings
 #define SET_PW			0x02
 #define SET_DELAY		0x04
-#define SET_NUM_SAMPLES 0x06
+#define SET_NUM_SAMPLES 	0x06
 #define SET_MODE 		0x08
 #define SET_ADC			0x0A
 #define	GET_STATUS		0x0C
-#define SET_POL_PRECEDE 0x12
+#define SET_POL_PRECEDE 	0x12
 #define SET_ATTEN22		0x14
 #define SET_ATTEN35		0x18
+#define SET_LOOP_FREQ_5		0x20
+#define SET_LOOP_FREQ_10	0x21
+#define SET_LOOP_FREQ_20	0x22
 #define GET_LOCK		0xD0
+
 // for CPLD measurements
-#define START_MSRMNT 	0x1E
-#define START_SLOW_LOOP 0x2E
-#define STOP_SLOW_LOOP	0x3E
+#define START_MSRMNT 		0x1E
+#define START_SLOW_LOOP 	0x2E
+#define STOP_SLOW_LOOP		0x3E
 // for DS1621 thermostat
-#define SET_CASE_TEMP	0x07
-#define GET_CASE_TEMP	0x17
-#define SET_BOARD_TEMP  0x03
-#define GET_BOARD_TEMP  0x13
+#define SET_CASE_TEMP		0x07
+#define GET_CASE_TEMP		0x17
+#define SET_BOARD_TEMP  	0x03
+#define GET_BOARD_TEMP  	0x13
 // for uC itself
-#define SET_RESET_COUNT 0x09
-#define GET_RESET_COUNT 0x19
+#define SET_RESET_COUNT 	0x09
+#define GET_RESET_COUNT 	0x19
 // for uC ADCs
 #define GET_ADC4		0xA4
 #define GET_ADC5		0xA5
@@ -53,9 +57,9 @@ int slow_loop_keep_running;
 #define	RADIOMETER		0x08
 
 // Function return codes, also used for uC-communication
-#define ERR				0xEE
+#define ERR			0xEE
 #define CPLD_BUSY		0xBB	
-#define OK				0xF0
+#define OK			0xF0
 #define DONE			0xF1
 #define USB_ERR			0xE1
 #define ARG_ERR			0xE2
@@ -65,20 +69,31 @@ int slow_loop_keep_running;
 // Must be altered if a new FTDI device is used
 #define USB_SERIAL_NUM	"0x804c85c"
 
-// Structure for passing args to threaded FT_Read
-//!! add a return status
-struct thread_args{
-	FT_HANDLE ftHandle;
-	unsigned char *pcBufRead;
-	int read_buffer_size;
-	DWORD dwBytesRead;
-};
+// ADC Offsets
+#define ADC_OFFSET_I_35		-14
+#define ADC_OFFSET_Q_35 	-12
+#define ADC_OFFSET_I_22		-8
+#define ADC_OFFSET_Q_22		-11
+
 
 // Struct for all pulse generator settings
-typedef struct {
-	int		n_samples; 	// Number of smaples
+// typedef struct {
+// 	int		n_samples; 	// Number of smaples
+// 	int		delay;		// Delay between TX and RX pulse
+// 	int		pw;			// Pulse width of TX pulse
+// 	int		mode;		// Opperation mode of pulse generator
+// 	int		atten22_1;	// Attenuation setting 1 for 22 GHz
+// 	int		atten22_2;	// Attenuation setting 2 for 22 GHz
+// 	int		atten35_1;	// Attenuation setting 1 for 35 GHz
+// 	int		atten35_2;	// Attenuation setting 2 for 35 GHz
+// } PULSE_CONF;
+
+typedef struct{
+	int		n_samples; 	// Number of samples
+	int		pw;	   	// Pulse width of TX pulse
 	int		delay;		// Delay between TX and RX pulse
-	int		pw;			// Pulse width of TX pulse
+	int 		pol_preced; 	// time the polarization switching precedes TX
+	int     	adc_delay;	// delay of ADC after RX
 	int		mode;		// Opperation mode of pulse generator
 	int		atten22_1;	// Attenuation setting 1 for 22 GHz
 	int		atten22_2;	// Attenuation setting 2 for 22 GHz
@@ -86,6 +101,19 @@ typedef struct {
 	int		atten35_2;	// Attenuation setting 2 for 35 GHz
 } PULSE_CONF;
 
+
+// Structure for passing args to threaded FT_Read
+//!! add a return status
+struct thread_args{
+	FT_HANDLE ftHandle;
+	unsigned char *pcBufRead;
+	int read_buffer_size;
+	DWORD dwBytesRead;
+	PULSE_CONF *conf;
+};
+
+
+// TODO Maybe change values to double to add more precission when ADC offsets are added
 typedef struct{
 	double mean;
 	double std_dev;
@@ -104,6 +132,15 @@ typedef struct{
 	DATA_POINTS* v_q_22;
 	DATA_POINTS* v_i_35;
 	DATA_POINTS* v_q_35;
+	
+	DATA_POINTS* h_a_22;
+	DATA_POINTS* h_p_22;
+	DATA_POINTS* h_a_35;
+	DATA_POINTS* h_p_35;
+	DATA_POINTS* v_a_22;
+	DATA_POINTS* v_p_22;
+	DATA_POINTS* v_a_35;
+	DATA_POINTS* v_p_35;
 } DATA_STRUCT;
 
 // FOR TESTS WITHOUT MALLOC
@@ -215,6 +252,8 @@ int get_case_temp(FT_HANDLE ftHandle);
 int set_board_temp(FT_HANDLE ftHandle,int t);
 
 int get_board_temp(FT_HANDLE ftHandle);
+
+int set_loop_freq(FT_HANDLE ftHandle, int t);
 
 int get_lock(FT_HANDLE ftHandle);
 

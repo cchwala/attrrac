@@ -36,19 +36,20 @@ FT_HANDLE ftHandle;
 int keep_running = 1;
 
 /* Struct for all pulse generator settings */
-struct pulse_conf{
-	int		n_samples; 	// Number of samples
-	int		pw;	   		// Pulse width of TX pulse
-	int		delay;		// Delay between TX and RX pulse
-	int 	pol_preced; // time the polarization switching precedes TX
-	int     adc_delay;	// delay of ADC after RX
-	int		mode;		// Opperation mode of pulse generator
-	int		atten22_1;	// Attenuation setting 1 for 22 GHz
-	int		atten22_2;	// Attenuation setting 2 for 22 GHz
-	int		atten35_1;	// Attenuation setting 1 for 35 GHz
-	int		atten35_2;	// Attenuation setting 2 for 35 GHz
-} pulse_conf;
+// struct pulse_conf{
+// 	int		n_samples; 	// Number of samples
+// 	int		pw;	   	// Pulse width of TX pulse
+// 	int		delay;		// Delay between TX and RX pulse
+// 	int 		pol_preced; 	// time the polarization switching precedes TX
+// 	int     	adc_delay;	// delay of ADC after RX
+// 	int		mode;		// Opperation mode of pulse generator
+// 	int		atten22_1;	// Attenuation setting 1 for 22 GHz
+// 	int		atten22_2;	// Attenuation setting 2 for 22 GHz
+// 	int		atten35_1;	// Attenuation setting 1 for 35 GHz
+// 	int		atten35_2;	// Attenuation setting 2 for 35 GHz
+// } pulse_conf;
 
+PULSE_CONF pulse_conf;
 
 /* F U N C T I O N S */
 
@@ -70,12 +71,12 @@ int set_default(FT_HANDLE ftHandle)
 	}
 	pulse_conf.n_samples = 512;
 	
-	status = set_delay(ftHandle, 230);
+	status = set_delay(ftHandle, 222);
 	if (status != OK){
 		printf("error %d\n", status);
 		return status;
 	}
-	pulse_conf.delay = 230;
+	pulse_conf.delay = 222;
 	
 	status = set_pw(ftHandle, 10);
 	if (status != OK){
@@ -91,12 +92,12 @@ int set_default(FT_HANDLE ftHandle)
 	}
 	pulse_conf.adc_delay = 1;
 	
-	status = set_pol_precede(ftHandle, 4);
+	status = set_pol_precede(ftHandle, 0);
 	if (status != OK){
 		printf("error %d\n", status);
 		return status;
 	}
-	pulse_conf.pol_preced = 4;
+	pulse_conf.pol_preced = 0;
 	
 	status = set_mode(ftHandle, COPOL);
 	if (status != OK){
@@ -182,7 +183,7 @@ int handle_socket_con(int fdSock)
 		pulse_conf.delay = atoi(message2);
 	}
 	
-	else if (strcmp(message1,"set_adc") == 0){
+	else if (strcmp(message1,"set_adc_delay") == 0){
 		status = set_adc(ftHandle, atoi(message2));
 		if (status != OK) printf("error %d\n", status);
 	}
@@ -210,6 +211,11 @@ int handle_socket_con(int fdSock)
 		pulse_conf.atten35_1 = atoi(message2);
 		pulse_conf.atten35_2 = atoi(message3);
 	}
+	
+	else if (strcmp(message1,"set_loop_freq") == 0){
+		status = set_loop_freq(ftHandle, atoi(message2));
+		if (status != OK) printf("error %d\n", status);
+	}	
 	
 	else if (strcmp(message1,"set_mode") == 0){
 		if (strcmp(message2,"CROSSPOL") == 0){
@@ -239,66 +245,71 @@ int handle_socket_con(int fdSock)
 	}
 		
 	else if (strcmp(message1,"start") == 0){
-		int N = pulse_conf.n_samples/2;					// n/2 samples per polarization
+		int N = pulse_conf.n_samples/2;			// n/2 samples per polarization
 		int n_bytes_to_read = 9*pulse_conf.n_samples; 	// 9 bytes data per polarization
 		
 		DATA_STRUCT *data = create_data_struct(N);
 		
-		status = start_msrmnt(ftHandle, n_bytes_to_read, data);
-		if (status != OK){
-			printf("error %d\n", status);
-			free(data);
-			return ERR;
-		}
-		printf("N = %d   size = %d samples/2 = %d\n", 
-			   N, data->N, pulse_conf.n_samples/2);
+		time_t t_now;
+		struct tm *ts;
+		char filename[23], sys_string[100];
 		
-////////////////////
-		FILE *iq_file;
-		FILE *ap_file;
-		iq_file = fopen("iq_data.dat","w"); // file for I_Q_data
-		ap_file = fopen("ap_data.dat","w"); // file for amplitude and phase data
-		fprintf(iq_file, "# 35_H_I 35_H_Q 22_H_I 22_H_Q");
-		fprintf(iq_file, " 35_V_I 35_V_Q 22_V_I 22_V_Q\n");
-		fprintf(ap_file, "# 35_H_Amp 35_V_Amp 22_H_Amp 22_V_Amp");
-		fprintf(ap_file, " 35_H_Pha 35_V_Pha 22_H_Pha 22_V_Pha\n");
-		int j = 0;
-		for (j = 0; j< data->N; j++){	
-			fprintf(iq_file,"%6d: %6d %6d %6d %6d %6d %6d %6d %6d\n", j, 
-					data->h_i_35->values[j], data->h_q_35->values[j],
-					data->h_i_22->values[j], data->h_q_22->values[j], 
-					data->v_i_35->values[j], data->v_q_35->values[j],
-					data->v_i_22->values[j], data->v_q_22->values[j]);
-					
-			fprintf(ap_file,"%6d: %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n", j,
-					amp(data->h_i_35->values[j], data->h_q_35->values[j]),
-					amp(data->v_i_35->values[j], data->v_q_35->values[j]),
-					amp(data->h_i_22->values[j], data->h_q_22->values[j]),
-					amp(data->v_i_22->values[j], data->v_q_22->values[j]),
-					pha(data->h_i_35->values[j], data->h_q_35->values[j]),
-					pha(data->v_i_35->values[j], data->v_q_35->values[j]),
-					pha(data->h_i_22->values[j], data->h_q_22->values[j]),
-					pha(data->v_i_22->values[j], data->v_q_22->values[j]));
+		int max_tries = 3;
+		int tries = 0;
+		int retry = 0;
+		
+		// read burst and retry if it fails
+		for(tries=0; tries<max_tries; tries++)
+		{
+			syslog(LOG_NOTICE, "n_of_tries %d\n", tries);
+		 
+			retry = 0;
+ 
+			// Start measurement and read data
+			status = start_msrmnt(ftHandle, n_bytes_to_read, data);
+			if (status != OK){
+				syslog(LOG_ERR, "start_msrmnt: error %d\n", status);
+				FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+				retry = 1;
+			}
+		  
+			// check if number of bytes read is OK
+			if(data->N != pulse_conf.n_samples/2){
+				syslog(LOG_ERR, "n_bytes_read wrong\n");
+				FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+				retry = 1;
+			}
+			
+			// if no retry is needed
+			if (retry == 0){
+				// open file with timestamped filename
+				time(&t_now);
+				ts =gmtime(&t_now);
+				strftime(filename, 23, "iq_%Y%m%d_%H%M%S.dat", ts);
+				FILE *iq_file = fopen(filename,"w");
+
+				// write header
+				fprintf(iq_file, "# 35_H_I 35_H_Q 22_H_I 22_H_Q");
+				fprintf(iq_file, " 35_V_I 35_V_Q 22_V_I 22_V_Q\n");				
+	
+				// write data
+				int j = 0;
+				for (j = 0; j< data->N; j++){	
+					fprintf(iq_file,"%6d %6d %6d %6d %6d %6d %6d %6d %6d\n", j, 
+							data->h_i_35->values[j], data->h_q_35->values[j],
+							data->h_i_22->values[j], data->h_q_22->values[j], 
+							data->v_i_35->values[j], data->v_q_35->values[j],
+							data->v_i_22->values[j], data->v_q_22->values[j]);
+				}
+				// close file
+				fclose(iq_file);
+				// move file
+				sprintf(sys_string, "mv %s /root/data_to_send/", filename);
+				system(sys_string);
+				// exit loop, because nomore try is needed
+				break;
+			}
 		}
-		fclose(iq_file);
-		fclose(ap_file);
-/////////////////////
-
-		mean(data, SKIP);
-		std_dev(data, SKIP);
-		printf("%d %d %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n",
-					pulse_conf.delay, data->N,
-					data->h_i_35->mean, data->h_q_35->mean, 
-					data->h_i_22->mean, data->h_q_22->mean,
-					data->v_i_35->mean, data->v_q_35->mean, 
-					data->v_i_22->mean, data->v_q_22->mean);
-		printf("%d %d %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n",
-					pulse_conf.delay, data->N,
-					data->h_i_35->std_dev, data->h_q_35->std_dev,
-					data->h_i_22->std_dev, data->h_q_22->std_dev, 
-					data->v_i_35->std_dev, data->v_q_35->std_dev,
-   				    data->v_i_22->std_dev, data->v_q_22->std_dev);
-
 		free_data_struct(data);
 	}
 	
@@ -312,15 +323,24 @@ int handle_socket_con(int fdSock)
 		//DATA_STRUCT d;
 		//DATA_STRUCT *data = &d;
 		
-		FILE *rad_file;
+		time_t t_now;
+		struct tm *ts;
 		
-		rad_file = fopen("rad_data.dat","w"); // file for I_Q_data
+		char filename[23], sys_string[100];		
+		
+		// open file with timestamped filename
+		time(&t_now);
+		ts =gmtime(&t_now);
+		strftime(filename, 27, "radar_%Y%m%d_%H%M_%S.dat", ts);
+		FILE *rad_file = fopen(filename,"w");
+				
+		//FILE *rad_file = fopen("rad_data.dat","w"); // file for I_Q_data
 	
-		fprintf(rad_file, "# delay 35_H_I 35_H_Q 22_H_I 22_H_Q");
-		fprintf(rad_file, " 35_V_I 35_V_Q 22_V_I 22_V_Q\n");
+		fprintf(rad_file, "# delay 35_H_A 35_H_P 22_H_A 22_H_P");
+		fprintf(rad_file, " 35_V_A 35_V_P 22_V_A 22_V_P\n");
 		
 		int delay;
-		for (delay = pulse_conf.pw + 5; delay < 250; delay += 2){
+		for (delay = pulse_conf.pw + 6; delay < 235; delay += 2){
 			status = set_delay(ftHandle, delay);
 			if (status != OK) printf("error %d\n", status);
 			pulse_conf.delay = delay;
@@ -337,26 +357,34 @@ int handle_socket_con(int fdSock)
 			
 			printf("%6d %6d %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f ",
 					pulse_conf.delay, data->N,
-					data->h_i_22->mean, data->h_q_22->mean, 
-					data->h_i_35->mean, data->h_q_35->mean,
-					data->v_i_22->mean, data->v_q_22->mean, 
-					data->v_i_35->mean, data->v_q_35->mean);
+					data->h_a_22->mean, data->h_p_22->mean, 
+					data->h_a_35->mean, data->h_p_35->mean,
+					data->v_a_22->mean, data->v_p_22->mean, 
+					data->v_a_35->mean, data->v_p_35->mean);
+			printf("%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n",
+ 					data->h_a_22->std_dev, data->h_p_22->std_dev, 
+ 					data->h_a_35->std_dev, data->h_p_35->std_dev,
+ 					data->v_a_22->std_dev, data->v_p_22->std_dev, 
+ 					data->v_a_35->std_dev, data->v_p_35->std_dev);					
 			
-			fprintf(rad_file, "%6d %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n",
-					pulse_conf.delay, 
-					data->h_i_35->mean, data->h_q_35->mean,
-					data->h_i_22->mean, data->h_q_22->mean,  
-					data->v_i_35->mean, data->v_q_35->mean,
-					data->v_i_22->mean, data->v_q_22->mean);		
-					
-		    printf("%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n",
-					data->h_i_22->std_dev, data->h_q_22->std_dev, 
-					data->h_i_35->std_dev, data->h_q_35->std_dev,
-					data->v_i_22->std_dev, data->v_q_22->std_dev, 
-					data->v_i_35->std_dev, data->v_q_35->std_dev);
+			// Write to file
+			fprintf(rad_file, "%6d %6d %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f ",
+					pulse_conf.delay, data->N, 
+					data->h_a_35->mean, data->h_p_35->mean,
+					data->h_a_22->mean, data->h_p_22->mean,  
+					data->v_a_35->mean, data->v_p_35->mean,
+					data->v_a_22->mean, data->v_p_22->mean);	
+			fprintf(rad_file, "%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f\n",
+ 					data->h_a_22->std_dev, data->h_p_22->std_dev, 
+ 					data->h_a_35->std_dev, data->h_p_35->std_dev,
+ 					data->v_a_22->std_dev, data->v_p_22->std_dev, 
+ 					data->v_a_35->std_dev, data->v_p_35->std_dev);					
 		}
 		fclose(rad_file);
-		free_data_struct(data);		
+		free_data_struct(data);
+		// move data to transfer directory
+		sprintf(sys_string, "mv %s /root/data_to_send/", filename);
+		system(sys_string);
 	}
 	
 	else if (strcmp(message1,"start_slow_loop") == 0){
@@ -364,12 +392,20 @@ int handle_socket_con(int fdSock)
 		struct thread_args a;
 		a.ftHandle = ftHandle;
 		a.read_buffer_size = pulse_conf.n_samples;
+		a.conf = &pulse_conf;
+		
+		struct sched_param param;
+		memset(&param, 0, sizeof(param));
+		param.sched_priority = 95;
+		int policy = SCHED_OTHER;
+		
 		int rc;
 		
 		// Start a thread for the slow measurement loop.
 		// Do not wait for it to return.
 		// It can be stopped by calling stop_slow_loop.
 		rc = pthread_create(&slow_loop_thread, NULL, start_slow_loop, &a);
+		rc = pthread_setschedparam(slow_loop_thread, policy, &param);
 	}
 	
 	else if (strcmp(message1,"stop_slow_loop") == 0)
@@ -429,6 +465,8 @@ int main()
 	int fdConn;
 	int status;
 	
+	/* delete unfinished data files */
+	system("rm *.dat");
 	
 	/* open log */
 	setlogmask (LOG_UPTO (LOG_NOTICE));
@@ -467,13 +505,18 @@ int main()
 	}
 	// Config device
 	FT_SetUSBParameters(ftHandle, 64000, 0);
-	// Setting latency to 2 leads to com problems, but
+	// Setting latency to 2 ms leads to com problems, but
 	// it should be as short as possible...
+	//
+	// Setting it to 0 ms worked well with libftdi.so.0.47.
+	//
+	// With 1.0.2 we get a lot of read errors. Trying it now with 2 ms
+	//
 	FT_SetLatencyTimer(ftHandle, 0);
 	FT_SetDtr(ftHandle);
 	FT_SetRts(ftHandle);
 	FT_SetFlowControl(ftHandle, FT_FLOW_RTS_CTS, 0, 0);
-	FT_SetTimeouts(ftHandle, 1500, 1500);
+	FT_SetTimeouts(ftHandle, 15000, 15000);
 	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 		
 	/* daemonize */
