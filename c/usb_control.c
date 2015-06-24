@@ -1311,14 +1311,14 @@ int raw2_i_q_h_v_data(unsigned char *raw_data, DATA_STRUCT *data,
 		if (data->h_i_22->values[j] > 2047) data->h_i_22->values[j] += -4096;
 		
 		// correct ADC offsets (calibration done in lab on 09.July.2010)
-		data->h_q_35->values[j] += ADC_OFFSET_Q_35;
-		data->h_i_35->values[j] += ADC_OFFSET_I_35;
-		data->v_q_22->values[j] += ADC_OFFSET_Q_22;
-		data->v_i_22->values[j] += ADC_OFFSET_I_22;
-		data->v_q_35->values[j] += ADC_OFFSET_Q_35;
-		data->v_i_35->values[j] += ADC_OFFSET_I_35;
-		data->h_q_22->values[j] += ADC_OFFSET_Q_22;
-		data->h_i_22->values[j] += ADC_OFFSET_I_22;
+		data->h_q_35->values[j] -= ADC_OFFSET_Q_35;
+		data->h_i_35->values[j] -= ADC_OFFSET_I_35;
+		data->v_q_22->values[j] -= ADC_OFFSET_Q_22;
+		data->v_i_22->values[j] -= ADC_OFFSET_I_22;
+		data->v_q_35->values[j] -= ADC_OFFSET_Q_35;
+		data->v_i_35->values[j] -= ADC_OFFSET_I_35;
+		data->h_q_22->values[j] -= ADC_OFFSET_Q_22;
+		data->h_i_22->values[j] -= ADC_OFFSET_I_22;
 		
 		//fprintf(file,"%d: %d %d %d %d %d %d %d %d\n",
 		//	j, data[j].h_q_35, data[j].h_i_35, data[j].h_q_22, data[j].h_i_22,
