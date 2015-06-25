@@ -709,13 +709,19 @@ void *start_slow_loop(void *args)
 	ts = gmtime(&t_now);
 	strftime(filename, 23, "loop_%Y%m%d_%H%M.dat", ts);
 	FILE *loop_file = fopen(filename,"w");
-	fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v1 \n");
-	fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
-	fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
-	fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
-	fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
-	fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
-	
+        // Write header
+        fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v2 \n");
+        fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
+        fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
+        fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
+        fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
+        fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
+        fprintf(loop_file, "#\n");
+        fprintf(loop_file, "time;           I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
+                                           "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
+                                           "T_case;   T_pcb;  accel1;  accel2;  resets\n");
+        
+        
 	int foo_count = 0;
 	
 	syslog(LOG_NOTICE, "Starting slow loop\n");
@@ -757,12 +763,16 @@ void *start_slow_loop(void *args)
 			loop_file = fopen(filename,"w");
 			tm_min_old = ts->tm_min;
 			// Write header
-			fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v1 \n");
+			fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v2 \n");
 			fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
 			fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
 			fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
 			fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
 			fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
+			fprintf(loop_file, "#\n");
+                        fprintf(loop_file, "time;           I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
+                                                           "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
+                                                           "T_case;   T_pcb;  accel1;  accel2;  resets\n");
 		}
 		
 		// read in case temperature
@@ -823,7 +833,7 @@ void *start_slow_loop(void *args)
 			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
 			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX); // safer to do this twice
 			fprintf(loop_file, 
-					"9999 9999 9999 9999 9999 9999 9999 9999 %5.1f %5.1f %d %d %d\n",
+					"9999; 9999; 9999; 9999; 9999; 9999; 9999; 9999; % 7.1f; % 7.1f; % 7d; % 7d; % 7d\n",
 					case_temp, board_temp, accel1, accel2, reset_count);
 		}
 		else{	
@@ -840,21 +850,21 @@ void *start_slow_loop(void *args)
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// ADD STANDARD DEVIATION !!!!!!
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-			fprintf(loop_file, 
+/*			fprintf(loop_file, 
 			"%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %d %d %d\n",
 						data->h_a_35->mean, data->h_p_35->mean,
 						data->h_a_22->mean, data->h_p_22->mean,  
 						data->v_a_35->mean, data->v_p_35->mean,
 						data->v_a_22->mean, data->v_p_22->mean,
 						case_temp, board_temp, accel1, accel2, reset_count);
-			// OLD FILE TYPE WITH AVERAGED I Q DATA
-//			fprintf(loop_file, 
-// 			"%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %d %d %d\n",
-// 						data->h_i_35->mean, data->h_q_35->mean,
-// 						data->h_i_22->mean, data->h_q_22->mean,  
-// 						data->v_i_35->mean, data->v_q_35->mean,
-// 						data->v_i_22->mean, data->v_q_22->mean,
-// 						case_temp, board_temp, accel1, accel2, reset_count);
+*/
+			fprintf(loop_file, 
+ 			"% 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7d; % 7d; % 7d\n",
+ 						data->h_i_35->mean, data->h_q_35->mean,
+ 						data->h_i_22->mean, data->h_q_22->mean,  
+ 						data->v_i_35->mean, data->v_q_35->mean,
+ 						data->v_i_22->mean, data->v_q_22->mean,
+ 						case_temp, board_temp, accel1, accel2, reset_count);
 						
 // 			foo_count++;
 // 			if(foo_count % 20 == 0){
