@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -O3
+CFLAGS = -Wall
 LIBS = -lm -L. -pthread -lftd2xx -Wl,-rpath /usr/local/lib -Wall
 
 all: attrracd attrrac watchdog
