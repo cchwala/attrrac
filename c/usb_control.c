@@ -717,9 +717,9 @@ void *start_slow_loop(void *args)
         fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
         fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
         fprintf(loop_file, "#\n");
-        fprintf(loop_file, "time;           I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
-                                           "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
-                                           "T_case;   T_pcb;  accel1;  accel2;  resets\n");
+        fprintf(loop_file, "time;            I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
+                                            "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
+                                            "T_case;   T_pcb;  accel1;  accel2;  resets\n");
         
         
 	int foo_count = 0;
@@ -770,9 +770,9 @@ void *start_slow_loop(void *args)
 			fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
 			fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
 			fprintf(loop_file, "#\n");
-                        fprintf(loop_file, "time;           I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
-                                                           "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
-                                                           "T_case;   T_pcb;  accel1;  accel2;  resets\n");
+                        fprintf(loop_file, "time;            I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
+                                                            "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
+                                                            "T_case;   T_pcb;  accel1;  accel2;  resets\n");
 		}
 		
 		// read in case temperature
@@ -787,7 +787,7 @@ void *start_slow_loop(void *args)
 		gettimeofday(&tim, NULL);
 		
 		//fprintf(loop_file, ctime(&tim.tv_sec));
-		fprintf(loop_file, "%ld.%03ld ", tim.tv_sec, tim.tv_usec/1000);
+		fprintf(loop_file, "%ld.%03ld; ", tim.tv_sec, tim.tv_usec/1000);
 		
 		// read in board temperature
 		read_byte(ftHandle, &c_lsb);
