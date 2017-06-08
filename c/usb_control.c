@@ -930,10 +930,10 @@ void *start_slow_loop_calibrate(void *args)
 	double case_temp = 0;
 	double board_temp = 0;
 
-        int A_22_h_max = 0;
-        int A_22_v_max = 0;
-        int A_35_h_max = 0;
-        int A_35_v_max = 0;
+        float A_22_h_max = 0;
+        float A_22_v_max = 0;
+        float A_35_h_max = 0;
+        float A_35_v_max = 0;
         
 	struct timeval tim;
 	double t;
@@ -974,9 +974,6 @@ void *start_slow_loop_calibrate(void *args)
                                             "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
                                             "T_case;   T_pcb;  accel1;  accel2;  resets\n");
 
-
-	int foo_count = 0;
-
 	syslog(LOG_NOTICE, "Starting slow loop\n");
 	tm_min_old = ts->tm_min;
 
@@ -995,9 +992,11 @@ void *start_slow_loop_calibrate(void *args)
 	//
 	FT_SetTimeouts(ftHandle, 15000, 15000);
 
+        int loop_count = 0;
 	// loop to continuously read in bursts of n_samples
 	// as long as slow_loop_keep_running is true
 	while(slow_loop_keep_running == 1){
+                loop_count += 1;
 		// open new file every minute
 		time(&t_now);
 		ts = gmtime(&t_now);
@@ -1125,14 +1124,35 @@ void *start_slow_loop_calibrate(void *args)
 		}
                 
                 // Print out amplitudes every second
-                time(&t_now);
-		ts = gmtime(&t_now);
-		tm_sec_diff = abs(ts->tm_sec - ts_old->tm_sec);
-		if(tm_sec_diff > 1){
-                        printf("Ha!");
+                //time(&t_now);
+		//ts = gmtime(&t_now);
+		//tm_sec_diff = abs(ts->tm_sec - ts_old->tm_sec);
+                
+		if(loop_count % 10 == 0){
+                        if(data->h_a_22->mean > A_22_h_max){
+                                A_22_h_max = data->h_a_22->mean;
+                        }
+                        if(data->v_a_22->mean > A_22_v_max){
+                                A_22_v_max = data->v_a_22->mean;
+                        }
+                        if(data->h_a_35->mean > A_35_h_max){
+                                A_35_h_max = data->h_a_35->mean;
+                        }
+                        if(data->v_a_35->mean > A_35_v_max){
+                                A_35_v_max = data->v_a_35->mean;
+                        }
+                        
+                        printf("22_h: %5.1f/%5.1f  "
+                               "22_v: %5.1f/%5.1f  "
+                               "35_h: %5.1f/%5.1f  "
+                               "35_v: %5.1f/%5.1f\n",
+                                data->h_a_22->mean, A_22_h_max,
+ 				data->v_a_22->mean, A_22_v_max,
+ 				data->h_a_35->mean, A_35_h_max,
+ 				data->v_a_35->mean, A_35_v_max);
                         // Update old time stamp
-                        time(&t_now);
-                        ts_old = gmtime(&t_now); 
+                        //time(&t_now);
+                        //ts_old = gmtime(&t_now); 
                 }
 	} // end loop
 
