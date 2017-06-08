@@ -727,7 +727,7 @@ void *start_slow_loop(void *args)
 	syslog(LOG_NOTICE, "Starting slow loop\n");
 	tm_min_old = ts->tm_min;
 	
-	
+
 	// QUICK FIX
 	// With low timeout values we get many missing bytes...
 	// Why that. Should not take to long to read samples here.
@@ -901,6 +901,258 @@ int stop_slow_loop(FT_HANDLE ftHandle)
 	
 	return OK;
 }
+
+
+void *start_slow_loop_calibrate(void *args)
+{
+        // Check if a slow_loop is running
+        if(slow_loop_keep_running == 1){
+                syslog(LOG_NOTICE, "Could not start calibrate loop. "
+                                   "There is already a slow loop running\n");
+                printf("Could not start calibrate loop. "
+                       "There is already a slow loop running\n");
+                return NULL;
+        }
+        
+	unsigned char done_message;
+	struct thread_args *a = (struct thread_args*) args;
+	FT_HANDLE ftHandle = a->ftHandle;
+	int read_buffer_size = 9*a->read_buffer_size;
+	DWORD dwBytesRead;
+	unsigned char *pcBufRead = (unsigned char *)malloc(read_buffer_size);
+
+	int N = floor(read_buffer_size/2);
+
+	DATA_STRUCT *data = create_data_struct(N);
+
+	int t_msb, t_lsb;
+	char c_msb, c_lsb;
+	double case_temp = 0;
+	double board_temp = 0;
+
+        int A_22_h_max = 0;
+        int A_22_v_max = 0;
+        int A_35_h_max = 0;
+        int A_35_v_max = 0;
+        
+	struct timeval tim;
+	double t;
+
+	int accel1, accel2;
+
+	int reset_count = 0;
+	char c_reset_count;
+
+	// build timestamp
+
+	// Send the command to start measuring
+	write_byte(ftHandle, START_SLOW_LOOP);
+
+	slow_loop_keep_running = 1;
+
+	time_t t_now, t_old;
+	struct tm *ts;
+        struct tm *ts_old;
+	int tm_min_old, tm_min_diff;
+        int tm_sec_diff;
+	char filename[35], filename_old[35], sys_string[100];
+
+	// open file with timestamped filename
+	time(&t_now);
+	ts = gmtime(&t_now);
+	strftime(filename, 35, "loop_calibration_%Y%m%d_%H%M.dat", ts);
+	FILE *loop_file = fopen(filename,"w");
+        // Write header
+        fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v2 \n");
+        fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
+        fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
+        fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
+        fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
+        fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
+        fprintf(loop_file, "#\n");
+        fprintf(loop_file, "time;            I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
+                                            "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
+                                            "T_case;   T_pcb;  accel1;  accel2;  resets\n");
+
+
+	int foo_count = 0;
+
+	syslog(LOG_NOTICE, "Starting slow loop\n");
+	tm_min_old = ts->tm_min;
+
+        // New variable for time to have a counter at 1 second rate
+        time(&t_now);
+        ts_old = gmtime(&t_now);
+
+	// QUICK FIX
+	// With low timeout values we get many missing bytes...
+	// Why that. Should not take to long to read samples here.
+	//
+	// CHECK THIS !!!!!!!!!!!!!!!
+	//
+	// Maybe a problem of block size which is the largest for
+	// fast burst transfer
+	//
+	FT_SetTimeouts(ftHandle, 15000, 15000);
+
+	// loop to continuously read in bursts of n_samples
+	// as long as slow_loop_keep_running is true
+	while(slow_loop_keep_running == 1){
+		// open new file every minute
+		time(&t_now);
+		ts = gmtime(&t_now);
+		tm_min_diff = abs(ts->tm_min - tm_min_old);
+		if(tm_min_diff != 0 && ts->tm_min%1 == 0){
+			strcpy (filename_old, filename);
+			// new filename
+			strftime(filename, 35, "loop_calibration_%Y%m%d_%H%M.dat", ts);
+			// close old file
+			fclose(loop_file);
+			// zip file to data_send directory
+			sprintf(sys_string, "gzip -c %s > /root/data_to_send/%s.gz",
+					filename_old, filename_old);
+			system(sys_string);
+			// remove file
+			sprintf(sys_string, "rm %s", filename_old);
+			system(sys_string);
+			// open new file
+			loop_file = fopen(filename,"w");
+			tm_min_old = ts->tm_min;
+			// Write header
+			fprintf(loop_file, "# FILE_TYPE  = SLOW_LOOP_v2 \n");
+			fprintf(loop_file, "# n_sample   = %d \n", a->conf->n_samples);
+			fprintf(loop_file, "# pw         = %d \n", a->conf->pw);
+			fprintf(loop_file, "# delay      = %d \n", a->conf->delay);
+			fprintf(loop_file, "# pol_preced = %d \n", a->conf->pol_preced);
+			fprintf(loop_file, "# adc_delay  = %d \n", a->conf->adc_delay);
+			fprintf(loop_file, "#\n");
+                        fprintf(loop_file, "time;            I_h_35;  Q_h_35;  I_h_22;  Q_h_22;  "
+                                                            "I_v_35;  Q_v_35;  I_v_22;  Q_v_22;  "
+                                                            "T_case;   T_pcb;  accel1;  accel2;  resets\n");
+		}
+
+		// read in case temperature
+		// explanation see function get_case_temp
+		read_byte(ftHandle, &c_lsb);
+		read_byte(ftHandle, &c_msb);
+		t_lsb = (int)c_lsb;
+		t_msb = (int)c_msb;
+		case_temp = t_msb - 0.5 * t_lsb/128;
+
+		// get current time
+		gettimeofday(&tim, NULL);
+
+		//fprintf(loop_file, ctime(&tim.tv_sec));
+		fprintf(loop_file, "%ld.%03ld; ", tim.tv_sec, tim.tv_usec/1000);
+
+		// read in board temperature
+		read_byte(ftHandle, &c_lsb);
+		read_byte(ftHandle, &c_msb);
+		t_lsb = (int)c_lsb;
+		t_msb = (int)c_msb;
+		board_temp = t_msb - 0.5 * t_lsb/128;
+
+		// read in accelerometer
+		read_byte(ftHandle, &c_lsb);
+		read_byte(ftHandle, &c_msb);
+		accel1 = ((double)c_msb*256 + (double)c_lsb);
+		read_byte(ftHandle, &c_lsb);
+		read_byte(ftHandle, &c_msb);
+		accel2 = ((double)c_msb*256 + (double)c_lsb);
+
+		// get reset count
+		read_byte(ftHandle, &c_reset_count);
+		reset_count = (int)c_reset_count;
+
+		// read in data
+		FT_Read(ftHandle, pcBufRead, read_buffer_size, &dwBytesRead);
+
+		// read done message
+		//read_byte(ftHandle, &done_message);
+		//if (done_message != DONE)		return uC_ERR;
+
+		// check data
+		if (dwBytesRead != read_buffer_size){
+			syslog(LOG_NOTICE, "slow_loop: too few byte read\n");
+		}
+		// erase this and write a clear read in and check routine!!!!!!!!!!!!!
+		int first, last;
+		check_read_data (pcBufRead, dwBytesRead, &first, &last);
+		int diff = last-first;
+		N = floor((diff+9)/18);
+
+
+		// if there is a glitch in the data purge USB buffer and write
+		// error to file
+		if ((last-first-9)%18 != 0){
+			syslog(LOG_NOTICE, "last - first is not mod 18!!\n");
+			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+			FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX); // safer to do this twice
+			fprintf(loop_file,
+					"9999; 9999; 9999; 9999; 9999; 9999; 9999; 9999; % 7.1f; % 7.1f; % 7d; % 7d; % 7d\n",
+					case_temp, board_temp, accel1, accel2, reset_count);
+		}
+		else{
+			// process data
+			raw2_i_q_h_v_data(pcBufRead, data, N, first, last);
+			mean(data, 0); // 0 because no sample shall be skipped
+			std_dev(data, 0);
+
+			// build timestamp
+
+			// write data to file
+
+
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// ADD STANDARD DEVIATION !!!!!!
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/*			fprintf(loop_file,
+			"%5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %5.1f %d %d %d\n",
+						data->h_a_35->mean, data->h_p_35->mean,
+						data->h_a_22->mean, data->h_p_22->mean,
+						data->v_a_35->mean, data->v_p_35->mean,
+						data->v_a_22->mean, data->v_p_22->mean,
+						case_temp, board_temp, accel1, accel2, reset_count);
+*/
+			fprintf(loop_file,
+ 			"% 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7.1f; % 7d; % 7d; % 7d\n",
+ 						data->h_i_35->mean, data->h_q_35->mean,
+ 						data->h_i_22->mean, data->h_q_22->mean,
+ 						data->v_i_35->mean, data->v_q_35->mean,
+ 						data->v_i_22->mean, data->v_q_22->mean,
+ 						case_temp, board_temp, accel1, accel2, reset_count);
+
+		}
+                
+                // Print out amplitudes every second
+                time(&t_now);
+		ts = gmtime(&t_now);
+		tm_sec_diff = abs(ts->tm_sec - ts_old->tm_sec);
+		if(tm_sec_diff > 1){
+                        printf("Ha!");
+                        // Update old time stamp
+                        time(&t_now);
+                        ts_old = gmtime(&t_now); 
+                }
+	} // end loop
+
+	// Send the command to stop measuring
+	write_byte(ftHandle, STOP_SLOW_LOOP);
+
+	// Purge buffers, because there may be some data from slow_loop that
+	// was not read in.
+	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+	FT_Purge(ftHandle, FT_PURGE_RX | FT_PURGE_TX);
+
+	syslog(LOG_NOTICE, "Slow low stopped\n");
+
+	fclose(loop_file);
+	free_data_struct(data);
+	free(pcBufRead);
+
+	return NULL;
+}
+
 
 int set_case_temp(FT_HANDLE ftHandle,int t)
 {

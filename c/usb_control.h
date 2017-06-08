@@ -245,6 +245,8 @@ void *start_slow_loop(void *args);
 
 int stop_slow_loop(FT_HANDLE ftHandle);
 
+void *start_slow_loop_calibrate(void *args);
+
 int set_case_temp(FT_HANDLE ftHandle,int t);
 
 int get_case_temp(FT_HANDLE ftHandle);

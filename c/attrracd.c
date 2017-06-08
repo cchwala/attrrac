@@ -408,6 +408,27 @@ int handle_socket_con(int fdSock)
 		rc = pthread_setschedparam(slow_loop_thread, policy, &param);
 	}
 	
+        else if (strcmp(message1,"start_slow_loop_calibrate") == 0){
+		pthread_t slow_loop_thread;
+		struct thread_args a;
+		a.ftHandle = ftHandle;
+		a.read_buffer_size = pulse_conf.n_samples;
+		a.conf = &pulse_conf;
+		
+		struct sched_param param;
+		memset(&param, 0, sizeof(param));
+		param.sched_priority = 95;
+		int policy = SCHED_OTHER;
+		
+		int rc;
+		
+		// Start a thread for the slow measurement loop.
+		// Do not wait for it to return.
+		// It can be stopped by calling stop_slow_loop.
+		rc = pthread_create(&slow_loop_thread, NULL, start_slow_loop_calibrate, &a);
+		rc = pthread_setschedparam(slow_loop_thread, policy, &param);
+	}
+        
 	else if (strcmp(message1,"stop_slow_loop") == 0)
 		stop_slow_loop(ftHandle);
 	
