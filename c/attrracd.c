@@ -186,6 +186,7 @@ int handle_socket_con(int fdSock)
 	else if (strcmp(message1,"set_adc_delay") == 0){
 		status = set_adc(ftHandle, atoi(message2));
 		if (status != OK) printf("error %d\n", status);
+                pulse_conf.adc_delay = atoi(message2);
 	}
 	
 	else if (strcmp(message1,"set_pol_precede") == 0){
